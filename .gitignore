@@ -1,0 +1,77 @@
+# Build artifacts
+bin/
+obj/
+out/
+
+# User-specific files
+.vscode/
+.idea/
+*.user
+*.suo
+*.ntvs*
+*.njsproj
+*.sln.ide
+
+# Logs and crash reports
+*.log
+*.tlog
+*.task
+*.pidb
+*.ilk
+hs_err_pid*
+memory.dmp
+
+# Rider / JetBrains
+*.sln.iml
+.idea/
+*.dotSettings.user
+*.sln.DotSettings
+*.ReSharper
+*_Resharper.Caches/
+
+# Visual Studio Code
+.vscode/
+
+# NuGet
+*.nupkg
+packages/
+.nuget/
+
+# Entity Framework Migrations
+Migrations/
+
+# Secrets
+secrets.json
+*.key
+*.pfx
+appsettings.Development.json
+
+# Dependency cache
+node_modules/
+wwwroot/lib/
+wwwroot/css/
+wwwroot/dist/
+
+# Publish output
+.publish/
+wwwroot/dist/
+wwwroot/framework/
+wwwroot/_framework/
+
+# Blazor WebAssembly
+wwwroot/service-worker.js
+wwwroot/service-worker.published.js
+wwwroot/manifest.json
+
+# .NET Core & ASP.NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+.env
+
+# IDE Workspaces
+/.vs/
+*.csproj.user
+
+# Rider
+.idea/
