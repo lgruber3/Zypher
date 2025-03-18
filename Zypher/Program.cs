@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Model;
 using Zypher.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,6 +9,14 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 var app = builder.Build();
+
+
+builder.Services.AddDbContextFactory<ContextClass>(
+    options => options.UseMySql(builder.Configuration
+            .GetConnectionString("DefaultConnection"),
+        new MySqlServerVersion(new Version(8, 0, 36))
+    )
+);
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
