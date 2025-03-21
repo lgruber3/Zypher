@@ -8,8 +8,8 @@ namespace Domain.Repositories;
 
 public abstract class ARepositoryAsync<TEntity> : IRepository<TEntity> where TEntity : class
 {
-    protected readonly ContextClass _context;
-    protected readonly DbSet<TEntity> _dbSet;
+    readonly ContextClass _context;
+    readonly DbSet<TEntity> _dbSet;
 
     protected ARepositoryAsync(ContextClass context)
     {
