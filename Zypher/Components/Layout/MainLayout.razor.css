@@ -5,15 +5,13 @@
     width: 100vw;
     height: 100vh;
     flex-direction: column;
-    font-family: ;
 }
 
 nav{
     width: 80vw;
-    height: 20vh;
+    height: 22vh;
     display: flex;
     justify-content: space-between;
-    margin-left: 10vw;
     align-items: center;
 }
 
@@ -22,10 +20,34 @@ nav{
     flex-direction: column;
 }
 
+#Logo, h1{
+    font-weight: bold;
+}
+
 #Logo{
     color: #B388EB;
 }
 
+#UserIcon{
+    width: 2.5vw;
+    height: 2.5vw;
+    color: #B388EB;         
+}
+
 main{
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.body{
+    width: 60%;
+    height: 52px; 
+    border-radius: 25px;
+    background: #2B2626;
+    display: flex;
+    justify-content: space-evenly;
+    color: #B388EB;
+    align-items: flex-end;
 }
