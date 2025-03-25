@@ -12,7 +12,7 @@ public class User
     public int Id { get; set; }
     
     [Column("PASSWORD")]
-    public int Password { get; set; }
+    public string Password { get; set; }
     
     [Column("USERNAME", TypeName = "string"), StringLength(20)]
     public string Username { get; set; }
