@@ -41,13 +41,14 @@ main{
     align-items: center;
 }
 
-.body{
-    width: 60%;
-    height: 52px; 
+.bar{
+    width: 48%;
+    height: 44px; 
     border-radius: 25px;
     background: #2B2626;
     display: flex;
     justify-content: space-evenly;
     color: #B388EB;
-    align-items: flex-end;
+    align-items: baseline;
+    padding-top: 0.5vw;
 }
