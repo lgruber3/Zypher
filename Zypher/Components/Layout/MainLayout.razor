@@ -1,34 +1,15 @@
 ﻿@inherits LayoutComponentBase
 
-@using Microsoft.AspNetCore.Components.Authorization
-@using Microsoft.AspNetCore.Authentication.Cookies
-@using Microsoft.AspNetCore.Authentication
-@inject NavigationManager Navigation
-@inject IHttpContextAccessor HttpContextAccessor
-
-<div class="main-layout">
-    <div class="header">
-        <h1>Zypher</h1>
-        <CascadingAuthenticationState>
-        <AuthorizeView>
-            <Authorized>
-                <p>Hello, @context.User.Identity.Name!</p>
-                <button @onclick="GoToStartPage">Home</button>
-            </Authorized>
-            <NotAuthorized>
-                <p>Please <NavLink href="/login">Login</NavLink> or <NavLink href="/register">Register</NavLink> to continue.</p>
-            </NotAuthorized>
-        </AuthorizeView>
-        </CascadingAuthenticationState>
-    </div>
-    <div class="content">
-        @Body 
-    </div>
+<div class="page">
+    <main>
+        <nav id="Logo" class="text-center">
+            <div id="Ueberschrift">
+                <h2>Zypher</h2>
+                <h5>typewriter Challange</h5>
+            </div>
+            <div id="Person">
+                <h2>img</h2>
+            </div>
+        </nav>
+    </main>
 </div>
-
-@code {
-    private async Task GoToStartPage()
-    {
-        Navigation.NavigateTo("/home"); 
-    }
-}
