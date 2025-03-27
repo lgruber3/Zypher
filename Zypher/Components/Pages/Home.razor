@@ -1,5 +1,18 @@
 ﻿@page "/"
+@using Zypher.Services
+@inject UserService UserService
 
-<PageTitle>Home</PageTitle>
+<h3>Welcome, @username!</h3>
 
-Get zypherin'
+@code {
+    private string username;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            username = await UserService.GetUsernameAsync();
+            StateHasChanged(); 
+        }
+    }
+}

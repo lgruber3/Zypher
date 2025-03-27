@@ -1,33 +1,26 @@
 ﻿@page "/login"
-@using Zypher.Components.Layout
-@inject AuthService AuthService
-@inject NavigationManager Navigation
-@layout MainLayout
+@using Zypher.Services
+@inject UserService UserService
+@inject NavigationManager NavigationManager
 
-<h3>Login</h3>
-@if (!string.IsNullOrEmpty(ErrorMessage))
-{
-    <p style="color:red">@ErrorMessage</p>
-}
-<input @bind="Username" placeholder="Username" />
-<input @bind="Password" type="password" placeholder="Password" />
-<button @onclick="LoginUser">Login</button>
+<h3>Enter Username</h3>
+
+<input @bind="username" placeholder="Enter your username" />
+
+<button @onclick="SetUsername">Set Username</button>
+
 
 @code {
-    private string Username { get; set; }
-    private string Password { get; set; }
-    private string ErrorMessage { get; set; }
+    private string username;
 
-    private async Task LoginUser()
+    private async Task SetUsername()
     {
-        var success = await AuthService.LoginAsync(Username, Password);
-        if (success)
+        if (!string.IsNullOrEmpty(username))
         {
-            Navigation.NavigateTo("/", forceLoad: true);
-        }
-        else
-        {
-            ErrorMessage = "Invalid username or password.";
+            await UserService.SetUsernameAsync(username);
+            
+            NavigationManager.NavigateTo("/");
         }
     }
+
 }

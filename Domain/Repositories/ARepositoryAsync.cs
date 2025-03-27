@@ -5,6 +5,7 @@ using Model;
 
 namespace Domain.Repositories;
 
+/*
 
 public abstract class ARepositoryAsync<TEntity> : IRepository<TEntity> where TEntity : class
 {
@@ -62,3 +63,4 @@ public abstract class ARepositoryAsync<TEntity> : IRepository<TEntity> where TEn
 }
 
     
+*/
