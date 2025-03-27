@@ -1,46 +1,22 @@
 ﻿@inherits LayoutComponentBase
 
-@using Microsoft.AspNetCore.Components.Authorization
-@using Microsoft.AspNetCore.Authentication.Cookies
-@using Microsoft.AspNetCore.Authentication
-@using Model.Model
-@inject NavigationManager Navigation
-@inject IHttpContextAccessor HttpContextAccessor
-@inject AuthenticationStateProvider AuthenticationStateProvider
-
 <div class="page">
-    <div class="navbar navbar-dark bg-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">Zypher</a>
-            
-            <div class="d-flex">
-                <CascadingAuthenticationState>
-                    <AuthorizeView>
-                        <Authorized>
-                            <div class="dropdown">
-                                <button class="btn btn-outline-light dropdown-toggle" type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="bi bi-person-circle"></i> @context.User.Identity.Name
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
-                                    <li><a class="dropdown-item" href="/">Home</a></li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item" href="/logout">Logout</a></li>
-                                </ul>
-                            </div>
-                        </Authorized>
-                        <NotAuthorized>
-                            <a href="/login" class="btn btn-outline-light me-2">Login</a>
-                            <a href="/register" class="btn btn-primary">Register</a>
-                        </NotAuthorized>
-                    </AuthorizeView>
-                </CascadingAuthenticationState>
+    <main>
+        <nav id="Logo" class="text-center">
+            <div id="Ueberschrift">
+                <h1>Zypher</h1>
+                <h6>TYPEWRITER CHALLANGE</h6>
             </div>
+            <div id="Person">
+                <img alt="img" id="UserIcon" src="img/UserIcon.png"/>
+            </div>
+        </nav>
+        <div class="bar">
+            <p>example</p>
+            <p>example</p>
+            <p>example</p>
+            <p>example</p>
+            <p>example</p>
         </div>
-    </div>
-
-    <div class="content container mt-4">
-        @Body
-    </div>
+    </main>
 </div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
