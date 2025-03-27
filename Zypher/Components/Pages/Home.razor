@@ -1,94 +1,208 @@
 ﻿@page "/"
+@using Zypher.Services
+@using Newtonsoft.Json.Linq
 @implements IDisposable
+@inject IConfiguration Configuration
+@inject HttpClient Http
+@inject ModeService ModeService
 
 <PageTitle>Zypher</PageTitle>
 
+<div class="wrapper">
 <div class="container">
     <h1>Zypher</h1>
 
-    <p class="sample-text">@sampleText</p>
+    <p class="sample-text">
+        @for (int i = 0; i < sampleText.Length; i++)
+        {
+            var typedChar = i < userInput.Length ? userInput[i] : (char?)null;
+            var sampleChar = sampleText[i];
+            var className = "";
 
-    <!-- Use @oninput ONLY (no @bind) -->
+            if (typedChar.HasValue)
+            {
+                if (typedChar == sampleChar)
+                {
+                    className = "correct";
+                }
+                else
+                {
+                    className = "incorrect";
+                }
+            }
+            else if (i == userInput.Length && !testCompleted && testStarted)
+            {
+                className = "current";
+            }
+
+            <span class="@className">@sampleChar</span>
+        }
+    </p>
+
     <input
         value="@userInput"
-        @oninput="(e) => CheckInput(e)"
+        @oninput="CheckInput"
+        @onkeydown="OnKeyDown"
         class="typing-input"
         placeholder="Start typing..."
+        style="opacity: 0; position: absolute; top: 0; left: 0; width: 80%; height: 38px; cursor: text;"
+        @onblur="FocusInput"
+        @ref="inputElement"
     />
 
     <div class="stats">
         <p>WPM: <span class="wpm">@wpm</span></p>
         <p>Accuracy: <span class="accuracy">@accuracy.ToString("0.00")%</span></p>
     </div>
+    <button class="btn btn-primary" @onclick="LoadNextText">Next</button>
+</div>
 </div>
 
 @code {
-private string sampleText = "The quick brown fox jumps over the lazy dog.";
-private string userInput = "";
-private int correctChars = 0;
-private DateTime startTime;
-private bool testStarted = false;
-private int wpm = 0;
-private double accuracy = 100;
-private System.Timers.Timer timer;
-private bool testCompleted = false;
+    private string sampleText = "The quick brown fox jumps over the lazy dog.";
+    private string userInput = "";
+    private DateTime startTime;
+    private bool testStarted = false;
+    private int wpm = 0;
+    private double accuracy = 100;
+    private System.Timers.Timer timer;
+    private bool testCompleted = false;
+    private ElementReference inputElement;
 
-protected override void OnInitialized()
-{
-timer = new System.Timers.Timer(1000);
-timer.Elapsed += UpdateWPM;
-timer.AutoReset = true;
-timer.Start();
-}
+    private int cumulativeCorrect = 0;
+    private int cumulativeTotal = 0;
 
-private void CheckInput(ChangeEventArgs e)
-{
-if (testCompleted) return;
+    protected override async Task OnInitializedAsync()
+    {
+        timer = new System.Timers.Timer(1000);
+        timer.Elapsed += UpdateWPM;
+        timer.AutoReset = true;
+        timer.Start();
+        
+        ModeService.OnModeChanged += OnModeChanged;
+        await LoadNewSampleText();
+    }
 
-if (!testStarted)
-{
-startTime = DateTime.Now;
-testStarted = true;
-}
+    private async void OnModeChanged()
+    {
+        await LoadNextText();
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await inputElement.FocusAsync();
+        }
+    }
 
-userInput = e.Value?.ToString() ?? "";
+    private void CheckInput(ChangeEventArgs e)
+    {
+        if (testCompleted) return;
 
-if (userInput.Length > sampleText.Length)
-{
-userInput = userInput.Substring(0, sampleText.Length);
-}
+        if (!testStarted)
+        {
+            startTime = DateTime.Now;
+            testStarted = true;
+        }
 
-correctChars = userInput
-.Take(sampleText.Length)
-.Zip(sampleText, (u, s) => u == s)
-.Count(match => match);
+        userInput = e.Value?.ToString() ?? "";
+        if (userInput.Length > sampleText.Length)
+        {
+            userInput = userInput.Substring(0, sampleText.Length);
+        }
 
-int charsToCompare = Math.Min(userInput.Length, sampleText.Length);
-accuracy = charsToCompare > 0 ? (correctChars / (double)charsToCompare) * 100 : 100;
+        if (userInput.Length == sampleText.Length)
+        {
+            testCompleted = true;
+            timer?.Stop();
+            UpdateWPM(null, null);
+        }
 
-if (userInput.Length == sampleText.Length)
-{
-testCompleted = true;
-timer?.Stop();
-UpdateWPM(null, null); // Force final WPM update
-}
+        StateHasChanged();
+    }
 
-StateHasChanged(); // Explicitly refresh UI
-}
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (testCompleted) return;
 
-private void UpdateWPM(object? sender, System.Timers.ElapsedEventArgs? e)
-{
-if (testStarted && !testCompleted)
-{
-var elapsedMinutes = (DateTime.Now - startTime).TotalMinutes;
-wpm = elapsedMinutes > 0 ? (int)(correctChars / 5 / elapsedMinutes) : 0;
-InvokeAsync(StateHasChanged); // Thread-safe UI update
-}
-}
+        // Ignore backspaces and delete key (so corrections don't subtract from totals)
+        if (e.Key == "Backspace" || e.Key == "Delete")
+        {
+            return;
+        }
 
-public void Dispose()
-{
-timer?.Stop();
-timer?.Dispose();
-}
+        // The position where this new key will be added is the current length of userInput.
+        int index = userInput.Length;
+        if (index < sampleText.Length)
+        {
+            cumulativeTotal++;
+            // Compare the pressed key with the expected character.
+            if (e.Key == sampleText[index].ToString())
+            {
+                cumulativeCorrect++;
+            }
+            // Update cumulative accuracy.
+            accuracy = cumulativeTotal > 0 ? (cumulativeCorrect / (double)cumulativeTotal) * 100 : 100;
+        }
+    }
+
+    private void UpdateWPM(object? sender, System.Timers.ElapsedEventArgs? e)
+    {
+        if (testStarted && !testCompleted)
+        {
+            var elapsedMinutes = (DateTime.Now - startTime).TotalMinutes;
+            wpm = elapsedMinutes > 0 ? (int)(userInput.Length / 5 / elapsedMinutes) : 0;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async void FocusInput()
+    {
+        await inputElement.FocusAsync();
+    }
+
+    private async Task LoadNextText()
+    {
+        await LoadNewSampleText();
+        testStarted = false;
+        testCompleted = false;
+        userInput = "";
+        accuracy = 100;
+        wpm = 0;
+        cumulativeCorrect = 0;
+        cumulativeTotal = 0;
+
+        timer.Start();
+        StateHasChanged();
+    }
+
+    private async Task LoadNewSampleText()
+    {
+        string apiUrl = string.Empty;
+
+        if (ModeService.SelectedMode  == TextType.Words)
+        {
+            apiUrl = Configuration["TextApis:RandomWords"];
+            var text = await Http.GetStringAsync(apiUrl);
+
+            sampleText = text.Replace("[", "").Replace("]", "").Replace(",", " ").Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("  ", " ");
+        }
+        else if (ModeService.SelectedMode == TextType.BookQuote)
+        {
+            apiUrl = Configuration["TextApis:RandomBookQuote"];
+            var text = await Http.GetStringAsync(apiUrl);
+            
+            var quote = JObject.Parse(text)["quote"].ToString();
+            sampleText = quote;
+        }
+
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        timer?.Stop();
+        timer?.Dispose();
+    }
 }

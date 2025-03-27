@@ -5,6 +5,7 @@
     width: 100vw;
     height: 100vh;
     flex-direction: column;
+    font-family: "Courier Prime";
 }
 
 nav{
@@ -39,6 +40,7 @@ main{
     display: flex;
     flex-direction: column;
     align-items: center;
+    flex-grow: 0.7;
 }
 
 .bar{
@@ -50,5 +52,37 @@ main{
     justify-content: space-evenly;
     color: #B388EB;
     align-items: baseline;
-    padding-top: 0.5vw;
 }
+
+.page-blur {
+    filter: blur(5px);
+    pointer-events: none;
+}
+
+./* Styling for the mode selector button */
+.mode-selector {
+    cursor: pointer;
+    padding: 10px;
+    color: #e0e0e0; /* Light text for unselected modes */
+    font-size: 1rem; /* Match the font size with other elements */
+    transition: all 0.3s ease; /* Smooth transition for effects */
+}
+
+/* Active mode styling */
+.mode-selector.active {
+    font-weight: bold;
+    color: #B388EB; /* Keep the purple theme from the rest of the page */
+    background-color: #403F3F; /* Dark background similar to the page */
+    border-radius: 20px; /* Rounded corners for consistency */
+    padding: 8px 12px; /* Slightly larger padding for active mode */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Soft shadow to emphasize the selection */
+}
+
+/* Additional hover effect to give feedback to the user */
+.mode-selector:hover {
+    background-color: #2B2626; /* Darker background on hover */
+    border-radius: 20px;
+    cursor: pointer;
+}
+
+

@@ -1,31 +1,68 @@
-﻿@inherits LayoutComponentBase
+﻿@using Zypher.Services
+@inherits LayoutComponentBase
 @inject NavigationManager NavigationManager
+@inject PopupStateService PopupStateService
+@inject ModeService ModeService
+@inject UserService UserService
 
 <div class="page">
-    <main>
+    <main  class="@($"{(PopupStateService.IsPopupActive ? "page-blur" : "")}")">
         <nav id="Logo" class="text-center">
             <div id="Ueberschrift">
                 <h1>Zypher</h1>
                 <h6>TYPEWRITER CHALLANGE</h6>
             </div>
             <div id="Person">
-                <img alt="img" id="UserIcon" src="img/UserIcon.png"/>
+                <span class="material-icons">@_username</span>
             </div>
         </nav>
-        <div class="bar">
-        </div>
+      <div class="bar">
+          <p @onclick="() => SetMode(TextType.Words)"class="mode-selector @(ModeService.SelectedMode  == TextType.Words? "active" : "")">Words</p>
+            <p @onclick="() => SetMode(TextType.BookQuote)" class="mode-selector @(ModeService.SelectedMode  == TextType.BookQuote? "active" : "")">Book Quotes</p>
+      </div>
+    </main>
         <div>
             @Body
         </div>
-    </main>
 </div>
 
 @code {
+    private string _username;
+    
     protected override async Task OnInitializedAsync()
     {
+        PopupStateService.OnStateChanged += StateHasChanged;
+        UserService.OnUserUpdated += UpdateUsername;
+        
         if (NavigationManager.Uri.EndsWith("/login") == false)
         {
             NavigationManager.NavigateTo("/login", true); 
         }
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _username = await UserService.GetUsernameAsync();
+            StateHasChanged();
+        }
+    }
+    
+    public async void UpdateUsername()
+    {
+        _username = await UserService.GetUsernameAsync();
+        StateHasChanged(); 
+    }
+    
+    private void SetMode(TextType mode)
+    {
+        ModeService.SelectedMode = mode;
+    }
+    
+    public void Dispose()
+    {
+        PopupStateService.OnStateChanged -= StateHasChanged;
+        UserService.OnUserUpdated -= UpdateUsername;
     }
 }

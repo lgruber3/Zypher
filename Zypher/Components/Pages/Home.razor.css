@@ -1,52 +1,129 @@
 ﻿body {
-    background-color: #121212;  /* Dark background */
-    color: #e0e0e0;             /* Light text */
+    background-color: #121212; /* Dark background */
+    color: #e0e0e0; /* Light text */
     margin: 0;
     padding: 0;
-    font-family: Arial, sans-serif;
+    font-family: "Courier Prime";
+    display: flex;
+    justify-content: center; /* Horizontally center */
+    align-items: center; /* Vertically center */
+    min-height: 100vh; /* Full viewport height */
+    flex-direction: column;
+    text-align: center; /* Center the text inside the container */
+}
+
+.wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    width: 100%;
 }
 
 .container {
-    background-color: transparent; /* Let the global dark background show through */
-    min-height: 100vh;
-    padding: 20px;
+    background-color: #1c1c1c; /* Dark background */
+    border-radius: 12px;
+    width: 65%;
+    padding: 30px;
     text-align: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); /* Subtle shadow */
+    margin: 20px;
+    font-family: "Courier Prime";
 }
 
-/* Sample text uses a purple accent */
+h1 {
+    color: #e0e0e0; /* Light text */
+    font-size: 2.5rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+}
+
+p {
+    color: #e0e0e0; /* Light text */
+}
+
 .sample-text {
     font-size: 1.5rem;
-    margin-bottom: 10px;
-    color: #8a2be2; /* Purple */
+    line-height: 1.5;
+    margin-bottom: 20px;
+    color: #8a2be2; /* Purple accent */
+    white-space: pre-wrap; /* Preserve whitespace and line breaks */
+    word-wrap: break-word; /* Ensure text wraps correctly */
 }
 
-/* Styling the input so it stands out against a dark background */
+.sample-text span {
+    display: inline-block; /* Allows background color on individual characters */
+    transition: color 0.3s ease, background-color 0.3s ease;
+}
+
 .typing-input {
-    width: 80%;
-    padding: 10px;
+    width: 100%;
+    padding: 12px;
     font-size: 1.2rem;
-    border: 2px solid #8a2be2;
-    border-radius: 5px;
-    background-color: #333; /* Dark grey background for the input */
-    color: #e0e0e0;        /* Light text inside the input */
+    border: 2px solid #8a2be2; /* Purple border */
+    border-radius: 8px;
+    background-color: #333;
+    color: transparent; /* Make the text transparent */
     outline: none;
+    caret-color: #e0e0e0; /* Visible caret */
+    transition: border 0.3s ease, background-color 0.3s ease;
 }
 
 .typing-input:focus {
-    border-color: #a020f0; /* Brighter purple when focused */
+    border-color: #b388eb; /* Focused purple border */
+    background-color: #222;
 }
 
-/* Stats styling */
 .stats {
     margin-top: 20px;
     font-size: 1.2rem;
+    display: flex;
+    justify-content: space-around;
+    padding: 10px 0;
+    font-weight: 500;
 }
 
 .wpm {
     color: #8a2be2;
-    font-weight: bold;
+    font-weight: 700;
 }
 
 .accuracy {
     color: #ff79c6; /* Light pink for contrast */
+}
+
+.correct {
+    color: #F7AEF8;
+}
+
+.incorrect {
+    color: red;
+    text-decoration: underline;
+}
+
+.current {
+    background-color: #F7AEF8;
+    color: black;
+}
+
+button {
+    background-color: #8a2be2;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    margin-top: 20px;
+    width: 100%;
+    max-width: 200px;
+}
+
+button:hover {
+    background-color: #7a1fd2;
+}
+
+button:focus {
+    outline: none;
 }

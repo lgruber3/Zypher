@@ -23,6 +23,8 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddHttpClient();
+builder.Services.AddScoped<PopupStateService>();
+builder.Services.AddScoped<ModeService>();
 
 var app = builder.Build();
 
