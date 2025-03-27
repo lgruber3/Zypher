@@ -1,7 +1,94 @@
 ﻿@page "/"
+@implements IDisposable
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Zypher</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="container">
+    <h1>Zypher</h1>
 
-Welcome to your new app.
+    <p class="sample-text">@sampleText</p>
+
+    <!-- Use @oninput ONLY (no @bind) -->
+    <input
+        value="@userInput"
+        @oninput="(e) => CheckInput(e)"
+        class="typing-input"
+        placeholder="Start typing..."
+    />
+
+    <div class="stats">
+        <p>WPM: <span class="wpm">@wpm</span></p>
+        <p>Accuracy: <span class="accuracy">@accuracy.ToString("0.00")%</span></p>
+    </div>
+</div>
+
+@code {
+private string sampleText = "The quick brown fox jumps over the lazy dog.";
+private string userInput = "";
+private int correctChars = 0;
+private DateTime startTime;
+private bool testStarted = false;
+private int wpm = 0;
+private double accuracy = 100;
+private System.Timers.Timer timer;
+private bool testCompleted = false;
+
+protected override void OnInitialized()
+{
+timer = new System.Timers.Timer(1000);
+timer.Elapsed += UpdateWPM;
+timer.AutoReset = true;
+timer.Start();
+}
+
+private void CheckInput(ChangeEventArgs e)
+{
+if (testCompleted) return;
+
+if (!testStarted)
+{
+startTime = DateTime.Now;
+testStarted = true;
+}
+
+userInput = e.Value?.ToString() ?? "";
+
+if (userInput.Length > sampleText.Length)
+{
+userInput = userInput.Substring(0, sampleText.Length);
+}
+
+correctChars = userInput
+.Take(sampleText.Length)
+.Zip(sampleText, (u, s) => u == s)
+.Count(match => match);
+
+int charsToCompare = Math.Min(userInput.Length, sampleText.Length);
+accuracy = charsToCompare > 0 ? (correctChars / (double)charsToCompare) * 100 : 100;
+
+if (userInput.Length == sampleText.Length)
+{
+testCompleted = true;
+timer?.Stop();
+UpdateWPM(null, null); // Force final WPM update
+}
+
+StateHasChanged(); // Explicitly refresh UI
+}
+
+private void UpdateWPM(object? sender, System.Timers.ElapsedEventArgs? e)
+{
+if (testStarted && !testCompleted)
+{
+var elapsedMinutes = (DateTime.Now - startTime).TotalMinutes;
+wpm = elapsedMinutes > 0 ? (int)(correctChars / 5 / elapsedMinutes) : 0;
+InvokeAsync(StateHasChanged); // Thread-safe UI update
+}
+}
+
+public void Dispose()
+{
+timer?.Stop();
+timer?.Dispose();
+}
+}

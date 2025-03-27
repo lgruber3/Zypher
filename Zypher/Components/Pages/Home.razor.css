@@ -1,0 +1,52 @@
+﻿body {
+    background-color: #121212;  /* Dark background */
+    color: #e0e0e0;             /* Light text */
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+}
+
+.container {
+    background-color: transparent; /* Let the global dark background show through */
+    min-height: 100vh;
+    padding: 20px;
+    text-align: center;
+}
+
+/* Sample text uses a purple accent */
+.sample-text {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+    color: #8a2be2; /* Purple */
+}
+
+/* Styling the input so it stands out against a dark background */
+.typing-input {
+    width: 80%;
+    padding: 10px;
+    font-size: 1.2rem;
+    border: 2px solid #8a2be2;
+    border-radius: 5px;
+    background-color: #333; /* Dark grey background for the input */
+    color: #e0e0e0;        /* Light text inside the input */
+    outline: none;
+}
+
+.typing-input:focus {
+    border-color: #a020f0; /* Brighter purple when focused */
+}
+
+/* Stats styling */
+.stats {
+    margin-top: 20px;
+    font-size: 1.2rem;
+}
+
+.wpm {
+    color: #8a2be2;
+    font-weight: bold;
+}
+
+.accuracy {
+    color: #ff79c6; /* Light pink for contrast */
+}
