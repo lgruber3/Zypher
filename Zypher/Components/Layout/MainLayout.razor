@@ -1,4 +1,5 @@
 ﻿@inherits LayoutComponentBase
+@inject NavigationManager NavigationManager
 
 <div class="page">
     <main>
@@ -12,11 +13,19 @@
             </div>
         </nav>
         <div class="bar">
-            <p>example</p>
-            <p>example</p>
-            <p>example</p>
-            <p>example</p>
-            <p>example</p>
+        </div>
+        <div>
+            @Body
         </div>
     </main>
 </div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        if (NavigationManager.Uri.EndsWith("/login") == false)
+        {
+            NavigationManager.NavigateTo("/login", true); 
+        }
+    }
+}

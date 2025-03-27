@@ -1,57 +1,10 @@
 ﻿@using Microsoft.AspNetCore.Components.Authorization
 @using Zypher.Components
+@using Zypher.Components.Layout
 
-<CascadingAuthenticationState>
-    <Router AppAssembly="typeof(Program).Assembly">
-        <Found Context="routeData">
-            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="typeof(Layout.MainLayout)">
-                <NotAuthorized>
-                    @if (context.User.Identity?.IsAuthenticated != true)
-                    {
-                        <RedirectToLogin />
-                    }
-                    else
-                    {
-                        <div class="container mt-5">
-                            <div class="alert alert-danger" role="alert">
-                                <h4 class="alert-heading">Access Denied</h4>
-                                <p>You are not authorized to access this resource.</p>
-                            </div>
-                        </div>
-                    }
-                </NotAuthorized>
-            </AuthorizeRouteView>
-            <FocusOnNavigate RouteData="routeData" Selector="h1"/>
-        </Found>
-        <NotFound>
-            <LayoutView Layout="typeof(Layout.MainLayout)">
-                <div class="container mt-5">
-                    <div class="alert alert-warning" role="alert">
-                        <h4 class="alert-heading">Page Not Found</h4>
-                        <p>Sorry, there's nothing at this address.</p>
-                    </div>
-                </div>
-            </LayoutView>
-        </NotFound>
-    </Router>
-</CascadingAuthenticationState>
-
-@code {
-    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; }
-}
-
-@* RedirectToLogin Component *@
-<CustomComponent>
-@code {
-    public class RedirectToLogin : ComponentBase
-    {
-        [Inject]
-        private NavigationManager Navigation { get; set; }
-
-        protected override void OnInitialized()
-        {
-            Navigation.NavigateTo($"/login?returnUrl={Uri.EscapeDataString(Navigation.Uri)}", true);
-        }
-    }
-}
-</CustomComponent>
+<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)"/>
+        <FocusOnNavigate RouteData="routeData" Selector="h1"/>
+    </Found>
+</Router>

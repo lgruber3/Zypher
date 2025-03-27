@@ -1,14 +1,19 @@
 ﻿@page "/login"
 @using Zypher.Services
+@using Zypher.Components.Layout
 @inject UserService UserService
 @inject NavigationManager NavigationManager
+@layout MainLayout
 
-<h3>Enter Username</h3>
 
-<input @bind="username" placeholder="Enter your username" />
+<div class="popup-container">
+    <h3>Enter Username</h3>
+    
+    <input @bind="username" placeholder="Enter your username" />
+    
+    <button @onclick="SetUsername">Set Username</button>
 
-<button @onclick="SetUsername">Set Username</button>
-
+</div>
 
 @code {
     private string username;
