@@ -51,11 +51,6 @@ p {
     word-wrap: break-word; /* Ensure text wraps correctly */
 }
 
-.sample-text span {
-    display: inline-block; /* Allows background color on individual characters */
-    transition: color 0.3s ease, background-color 0.3s ease;
-}
-
 .typing-input {
     width: 100%;
     padding: 12px;
@@ -89,7 +84,7 @@ p {
 }
 
 .accuracy {
-    color: #ff79c6; /* Light pink for contrast */
+    color: #ff79c6; 
 }
 
 .correct {
@@ -101,9 +96,24 @@ p {
     text-decoration: underline;
 }
 
-.current {
+.cursor {
+    display: inline-block; 
+    width: 2px;            
+    height: 1.6rem;        
     background-color: #F7AEF8;
-    color: black;
+    vertical-align: bottom; 
+    margin-left: -1px;     
+    margin-right: 1px;     
+    position: relative;
+    top: -6px;
+}
+
+.sample-text span {
+    display: inline-block;    
+    transition: color 0.3s ease; 
+    vertical-align: bottom;   
+    min-width: 1px;         
+    /* min-height: 1em; */
 }
 
 button {
@@ -126,4 +136,37 @@ button:hover {
 
 button:focus {
     outline: none;
+}
+
+.floating-translation {
+    position: absolute;
+    background-color: #8a2be2;
+    border: 1px solid #121212;
+    padding: 8px 12px;
+    border-radius: 6px;
+    z-index: 1000;
+    font-size: 1rem; 
+    white-space: nowrap;
+    max-width: 200px;
+    word-wrap: break-word;
+    color: white;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    transform: translateX(-50%); /* Center horizontally */
+}
+
+.translation-arrow {
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 8px solid #8a2be2;
+}
+
+.info-text {
+    color: white;
 }

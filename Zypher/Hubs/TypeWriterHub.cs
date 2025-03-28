@@ -6,11 +6,22 @@ namespace Zypher;
 
 public class TypingHub : Hub
 {
-    private static ConcurrentDictionary<string, int> _playerProgress = new();
+    private static ConcurrentDictionary<string, int> _sessions = new();
 
-    public async Task UpdateProgress(string playerId, int progress)
+    public async Task SendKeystroke(string user, string key, int position)
     {
-        _playerProgress[playerId] = progress;
-        await Clients.All.SendAsync("ProgressUpdated", _playerProgress);
+        await Clients.Others.SendAsync("ReceiveKeystroke", user, key, position);
     }
+    
+   public async Task Join(string user)
+   {
+       _sessions.AddOrUpdate(user, 0, (key, value) => value);
+       await Clients.All.SendAsync("UserJoined", user);
+   }
+   
+   public async Task Leave(string user)
+   {
+       _sessions.TryRemove(user, out _);
+       await Clients.All.SendAsync("UserLeft", user);
+   }
 }

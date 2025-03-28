@@ -20,11 +20,11 @@ builder.Services.AddDbContextFactory<ContextClass>(
 );
 builder.Services.AddRazorPages();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddServerSideBlazor();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<PopupStateService>();
 builder.Services.AddScoped<ModeService>();
+builder.Services.AddSignalR();
 
 var app = builder.Build();
 
@@ -42,5 +42,7 @@ app.UseAntiforgery();
 app.MapRazorPages();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+app.MapHub<TypingHub>("/typinghub");
 
 app.Run();

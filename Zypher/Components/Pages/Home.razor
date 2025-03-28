@@ -1,62 +1,93 @@
 ﻿@page "/"
 @using Zypher.Services
 @using Newtonsoft.Json.Linq
+@using Microsoft.JSInterop
 @implements IDisposable
 @inject IConfiguration Configuration
 @inject HttpClient Http
 @inject ModeService ModeService
+@inject IJSRuntime JS
 
 <PageTitle>Zypher</PageTitle>
 
 <div class="wrapper">
-<div class="container">
-    <h1>Zypher</h1>
+    <div class="container">
+        <h1>Zypher</h1>
+        <h5 class="info-text">Press Ctrl + Space for Translation</h5>
 
-    <p class="sample-text">
-        @for (int i = 0; i < sampleText.Length; i++)
-        {
-            var typedChar = i < userInput.Length ? userInput[i] : (char?)null;
-            var sampleChar = sampleText[i];
-            var className = "";
+      <p class="sample-text">
+          @for (int i = 0; i < sampleText.Length; i++)
+          {
+              // --- Add @key ---
+              var keyBase = $"pos-{i}"; // Create a base unique identifier for this position
+      
+              if (i == userInput.Length && !testCompleted && testStarted)
+              {
+                  // --- Add @key to cursor ---
+                  <span class="cursor" @key="@(keyBase + "-cursor")"></span>
+              }
+      
+              var typedChar = i < userInput.Length ? userInput[i] : (char?)null;
+              var sampleChar = sampleText[i];
+              var className = "";
+      
+              if (typedChar.HasValue)
+              {
+                  if (typedChar == sampleChar)
+                  {
+                      className = "correct";
+                  }
+                  else
+                  {
+                      className = "incorrect";
+                  }
+              }
+      
+              // --- Add @key to character span ---
+              <span id="char-@i" class="@className" @key="@keyBase">@sampleChar</span>
+          }
+          @if (userInput.Length == sampleText.Length && !testCompleted && testStarted)
+          {
+              // --- Add @key to final cursor ---
+                <span class="cursor" @key="@(sampleText.Length + "-cursor")"></span>
+          }
+      </p>
 
-            if (typedChar.HasValue)
-            {
-                if (typedChar == sampleChar)
-                {
-                    className = "correct";
-                }
-                else
-                {
-                    className = "incorrect";
-                }
-            }
-            else if (i == userInput.Length && !testCompleted && testStarted)
-            {
-                className = "current";
-            }
+        <input
+            value="@userInput"
+            @oninput="CheckInput"
+            @onkeydown="OnKeyDown"
+            class="typing-input"
+            placeholder="Start typing..."
+            style="opacity: 0; position: absolute; top: 0; left: 0; width: 80%; height: 38px; cursor: text;"
+            @onblur="FocusInput"
+            @ref="inputElement"
+        />
 
-            <span class="@className">@sampleChar</span>
-        }
-    </p>
-
-    <input
-        value="@userInput"
-        @oninput="CheckInput"
-        @onkeydown="OnKeyDown"
-        class="typing-input"
-        placeholder="Start typing..."
-        style="opacity: 0; position: absolute; top: 0; left: 0; width: 80%; height: 38px; cursor: text;"
-        @onblur="FocusInput"
-        @ref="inputElement"
-    />
-
-    <div class="stats">
-        <p>WPM: <span class="wpm">@wpm</span></p>
-        <p>Accuracy: <span class="accuracy">@accuracy.ToString("0.00")%</span></p>
+        <div class="stats">
+            <p>WPM: <span class="wpm">@wpm</span></p>
+            <p>Accuracy: <span class="accuracy">@accuracy.ToString("0.00")%</span></p>
+        </div>
+        <button class="btn btn-primary" @onclick="LoadNextText">Next</button>
     </div>
-    <button class="btn btn-primary" @onclick="LoadNextText">Next</button>
 </div>
-</div>
+
+@if(showTranslation)
+{
+<div class="floating-translation" style="position: absolute; top: @((int)Math.Round(floatingTop))px; left: @((int)Math.Round(floatingLeft))px;">
+         @floatingTranslation
+    </div>
+}
+<script>
+    window.getElementPosition = (id) => {
+        var el = document.getElementById(id);
+        if (el) {
+            var rect = el.getBoundingClientRect();
+            return { top: rect.top + window.scrollY, left: rect.left + window.scrollX };
+        }
+        return null;
+    }
+</script>
 
 @code {
     private string sampleText = "The quick brown fox jumps over the lazy dog.";
@@ -71,6 +102,11 @@
 
     private int cumulativeCorrect = 0;
     private int cumulativeTotal = 0;
+
+    private string floatingTranslation = "";
+    private double floatingTop = 0;
+    private double floatingLeft = 0;
+    private bool showTranslation = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -96,7 +132,7 @@
         }
     }
 
-    private void CheckInput(ChangeEventArgs e)
+    private async void CheckInput(ChangeEventArgs e)
     {
         if (testCompleted) return;
 
@@ -119,32 +155,86 @@
             UpdateWPM(null, null);
         }
 
-        StateHasChanged();
+        if (showTranslation)
+        {
+            showTranslation = false;
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
-    private void OnKeyDown(KeyboardEventArgs e)
+    private async void OnKeyDown(KeyboardEventArgs e)
     {
         if (testCompleted) return;
 
-        // Ignore backspaces and delete key (so corrections don't subtract from totals)
+        if (e.Key == " " || e.Key == "Space") 
+        {
+            if (e.CtrlKey)
+            {
+                await ShowTranslation();
+            }
+            return;
+        }
+
         if (e.Key == "Backspace" || e.Key == "Delete")
         {
             return;
         }
 
-        // The position where this new key will be added is the current length of userInput.
         int index = userInput.Length;
         if (index < sampleText.Length)
         {
             cumulativeTotal++;
-            // Compare the pressed key with the expected character.
+
             if (e.Key == sampleText[index].ToString())
             {
                 cumulativeCorrect++;
             }
-            // Update cumulative accuracy.
+
             accuracy = cumulativeTotal > 0 ? (cumulativeCorrect / (double)cumulativeTotal) * 100 : 100;
         }
+    }
+
+    private async Task ShowTranslation()
+    {
+        int pos = userInput.Length;
+        if (pos >= sampleText.Length)
+        {
+            pos = sampleText.Length - 1;
+        }
+
+        int wordStart = pos;
+        while (wordStart > 0 && sampleText[wordStart - 1] != ' ')
+        {
+            wordStart--;
+        }
+
+        int wordEnd = pos;
+        while (wordEnd < sampleText.Length && sampleText[wordEnd] != ' ')
+        {
+            wordEnd++;
+        }
+
+        string currentWord = sampleText.Substring(wordStart, wordEnd - wordStart).Trim();
+        if (string.IsNullOrEmpty(currentWord))
+            return;
+
+        await TranslateWord(currentWord);
+
+        var position = await JS.InvokeAsync<Position>("getElementPosition", "char-" + wordStart);
+        if (position != null)
+        {
+            Console.WriteLine($"Top: {position.top}, Left: {position.left}");
+            floatingTop = position.top - 40;
+            
+            var wordWidth = (wordEnd - wordStart) * 10; 
+            floatingLeft = position.left + (wordWidth / 2); 
+            
+            Console.WriteLine($"Top: {floatingTop}, Left: {floatingLeft}");
+        }
+
+        showTranslation = true;
+        StateHasChanged();
     }
 
     private void UpdateWPM(object? sender, System.Timers.ElapsedEventArgs? e)
@@ -172,6 +262,7 @@
         wpm = 0;
         cumulativeCorrect = 0;
         cumulativeTotal = 0;
+        showTranslation = false; 
 
         timer.Start();
         StateHasChanged();
@@ -204,5 +295,23 @@
     {
         timer?.Stop();
         timer?.Dispose();
+    }
+
+    public class Position
+    {
+        public double top { get; set; }
+        public double left { get; set; }
+    }
+    
+    private async Task TranslateWord(string word)
+    {
+        var requestBody = new { text = word, target_lang = "de" };
+        var response = await Http.PostAsJsonAsync("http://localhost:8000/translate", requestBody);
+    
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+            floatingTranslation = result["translated_text"];
+        }
     }
 }
