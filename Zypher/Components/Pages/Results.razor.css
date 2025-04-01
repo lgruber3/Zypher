@@ -1,0 +1,132 @@
+﻿
+::deep body { /* Use ::deep if needed to pierce component boundaries for body */
+    background-color: #121212; /* Dark background */
+    color: #e0e0e0; /* Light text */
+    margin: 0;
+    padding: 0;
+    font-family: "Courier Prime", monospace; /* Added monospace fallback */
+    display: flex;
+    justify-content: center; /* Horizontally center */
+    align-items: center; /* Vertically center */
+    min-height: 100vh; /* Full viewport height */
+    flex-direction: column;
+    text-align: center; /* Center the text inside the container */
+}
+
+/* --- Component Specific Styles --- */
+.wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* height: 100%; */ /* Avoid forcing 100% height here */
+    width: 100%;
+    padding: 20px; /* Add some padding */
+    box-sizing: border-box;
+}
+
+.container {
+    background-color: #1c1c1c; /* Dark container background */
+    border-radius: 12px;
+    width: 90%; /* Responsive width */
+    max-width: 600px; /* Max width for larger screens */
+    padding: 30px 40px; /* More padding */
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); /* Subtle shadow */
+    margin: 20px;
+    font-family: "Courier Prime", monospace;
+}
+
+h1 {
+    color: #e0e0e0; /* Light text */
+    font-size: 2.5rem;
+    font-weight: 600;
+    margin-bottom: 30px; /* Increased margin */
+}
+
+/* --- Results Specific Stats Layout --- */
+.results-stats {
+    display: flex;
+    justify-content: space-around; /* Space out WPM and Accuracy */
+    align-items: center;
+    margin: 30px 0; /* Add vertical spacing */
+    flex-wrap: wrap; /* Allow wrapping on smaller screens */
+    gap: 20px; /* Add gap between items */
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column; /* Stack label and value */
+    align-items: center;
+}
+
+.stat-label {
+    font-size: 1.1rem;
+    color: #aaa; /* Softer color for label */
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.stat-value {
+    font-size: 3.5rem; /* Make results prominent */
+    font-weight: 700;
+}
+
+.wpm-result {
+    color: #8a2be2; /* Purple accent for WPM */
+}
+
+.accuracy-result {
+    color: #ff79c6; /* Pink accent for Accuracy */
+}
+
+
+/* --- Button Styles (Reused) --- */
+button {
+    background-color: #8a2be2;
+    color: white;
+    padding: 12px 25px; /* Slightly more padding */
+    border-radius: 8px;
+    border: none;
+    font-size: 1.1rem; /* Slightly larger font */
+    font-family: "Courier Prime", monospace;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.1s ease;
+    margin-top: 30px; /* Space above button */
+    width: auto; /* Allow button to size based on content */
+    min-width: 150px;
+}
+
+button:hover {
+    background-color: #7a1fd2;
+}
+
+button:active {
+    transform: scale(0.98); /* Click effect */
+}
+
+button:focus {
+    outline: 2px solid #b388eb; /* Focus outline */
+    outline-offset: 2px;
+}
+
+/* --- Media query for smaller screens (optional) --- */
+@media (max-width: 600px) {
+    h1 {
+        font-size: 2rem;
+    }
+
+    .container {
+        padding: 20px;
+    }
+
+    .stat-value {
+        font-size: 2.8rem;
+    }
+
+    .results-stats {
+        flex-direction: column; /* Stack stats vertically on small screens */
+        align-items: center;
+        gap: 25px;
+    }
+}

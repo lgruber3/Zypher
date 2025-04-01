@@ -1,0 +1,46 @@
+﻿@page "/results"
+@inject NavigationManager NavigationManager
+
+<PageTitle>Results - Zypher</PageTitle>
+
+<div class="wrapper">
+    <div class="container results-container"> @* Add specific class if needed *@
+        <h1>Test Results</h1>
+
+        <div class="results-stats">
+            <div class="stat-item">
+                <div class="stat-label">WPM</div>
+                <div class="stat-value wpm-result">@Wpm</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Accuracy</div>
+                <div class="stat-value accuracy-result">@Accuracy.ToString("0.00")%</div>
+            </div>
+        </div>
+
+        <button class="btn btn-primary" @onclick="GoToTest">Try Again</button>
+        @* Add other buttons if desired, e.g., back to dashboard *@
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public int Wpm { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "accuracy")] // Match query param name if different from property
+    public double Accuracy { get; set; }
+
+    private void GoToTest()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+
+    protected override void OnInitialized()
+    {
+        // You could add validation here if needed, e.g., check if Wpm/Accuracy were supplied
+        base.OnInitialized();
+        Console.WriteLine($"Results Page Initialized: WPM={Wpm}, Accuracy={Accuracy}"); // For debugging
+    }
+}
