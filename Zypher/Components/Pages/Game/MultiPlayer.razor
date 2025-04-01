@@ -13,7 +13,6 @@
 
 <PageTitle>Multiplayer Race</PageTitle>
 
-
 @if (isLoading)
 {
     <div class="connection-container">
@@ -105,6 +104,26 @@ else
                                          aria-valuemin="0"
                                          aria-valuemax="@(sampleText?.Length ?? 100)">
                                         @(CalculateProgressPercentage(player.Position))%
+                                <span>@player.Name@nameSuffix (@(player.Wpm) WPM):</span>
+                                <div class="progress-container" style="position: relative;">
+                                    
+                                    <svg class="rocket-icon" 
+                                         style="position: absolute; left: @(CalculateProgressPercentage(player.Position))%; transform: translateX(-50%); top: -20px; width: 20px; height: 20px;"
+                                         xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                                        <path fill="@(player.ConnectionId == myConnectionId ? "#007bff" : player.ConnectionId == hostConnectionId ? "#17a2b8" : "#6c757d")" 
+                                              d="M12,2.5c0,0,4.5,2.04,4.5,10.5c0,2.49-1.04,5.57-1.6,7H9.1c-0.56-1.43-1.6-4.51-1.6-7C7.5,4.54,12,2.5,12,2.5z"/>
+                                        <path fill="#dc3545" d="M10,15h4v4h-4V15z"/>
+                                        <path fill="#ffc107" d="M12,7c1.1,0,2,0.9,2,2s-0.9,2-2,2s-2-0.9-2-2S10.9,7,12,7z"/>
+                                    </svg>
+                                    
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar @GetProgressBarClass(player)" role="progressbar"
+                                             style="width: @Math.Round(CalculateProgressPercentage(player.Position))%;"
+                                             aria-valuenow="@Math.Round((decimal)player.Position)"
+                                             aria-valuemin="0"
+                                             aria-valuemax="@(sampleText?.Length ?? 100)">
+                                            @(CalculateProgressPercentage(player.Position))%
+                                        </div>
                                     </div>
                                 </div>
                                  @if (isCurrentPlayer) 
@@ -166,6 +185,13 @@ else
          pointer-events: none;
      }
 
+    /* Neue Styles für die Raketen */
+    .progress-container {
+        position: relative;
+        margin-top: 20px; /* Platz für die Rakete */
+    }
+      
+ 
 </style>
 
 
@@ -648,12 +674,21 @@ else
         StateHasChanged();
     }
 
-     private double CalculateProgressPercentage(int position)
-     {
-         if (string.IsNullOrEmpty(sampleText) || sampleText.Length == 0) return 0;
-         int validPosition = Math.Clamp(position, 0, sampleText.Length);
-         return Math.Round((double)validPosition / sampleText.Length * 100.0, 1);
-     }
+    private double CalculateProgressPercentage(int position)
+    {
+        if (string.IsNullOrEmpty(sampleText)) return 0;
+        
+        // Calculate raw percentage
+        double percentage = (double)position / sampleText.Length * 100;
+        
+        // Round to nearest even number
+        int rounded = (int)Math.Round(percentage);
+        int evenValue = rounded % 2 == 0 ? rounded : 
+            percentage > rounded ? rounded + 1 : rounded - 1;
+        
+        // Ensure value is between 0-100
+        return Math.Clamp(evenValue, 0, 100);
+    }
 
      private string GetHostName()
      {
@@ -768,4 +803,4 @@ else
          Finished
      }
 
-} 
+}
