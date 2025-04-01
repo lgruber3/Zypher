@@ -7,6 +7,7 @@
 @inject HttpClient Http
 @inject ModeService ModeService
 @inject IJSRuntime JS
+@inject NavigationManager NavigationManager
 
 <PageTitle>Zypher</PageTitle>
 
@@ -15,43 +16,39 @@
         <h1>Zypher</h1>
         <h5 class="info-text">Press Ctrl + Space for Translation</h5>
 
-      <p class="sample-text">
-          @for (int i = 0; i < sampleText.Length; i++)
-          {
-              // --- Add @key ---
-              var keyBase = $"pos-{i}"; // Create a base unique identifier for this position
-      
-              if (i == userInput.Length && !testCompleted && testStarted)
-              {
-                  // --- Add @key to cursor ---
-                  <span class="cursor" @key="@(keyBase + "-cursor")"></span>
-              }
-      
-              var typedChar = i < userInput.Length ? userInput[i] : (char?)null;
-              var sampleChar = sampleText[i];
-              var className = "";
-      
-              if (typedChar.HasValue)
-              {
-                  if (typedChar == sampleChar)
-                  {
-                      className = "correct";
-                  }
-                  else
-                  {
-                      className = "incorrect";
-                  }
-              }
-      
-              // --- Add @key to character span ---
-              <span id="char-@i" class="@className" @key="@keyBase">@sampleChar</span>
-          }
-          @if (userInput.Length == sampleText.Length && !testCompleted && testStarted)
-          {
-              // --- Add @key to final cursor ---
+        <p class="sample-text">
+            @for (int i = 0; i < sampleText.Length; i++)
+            {
+                var keyBase = $"pos-{i}"; // Create a base unique identifier for this position
+        
+                if (i == userInput.Length && !testCompleted && testStarted)
+                {
+                    <span class="cursor" @key="@(keyBase + "-cursor")"></span>
+                }
+        
+                var typedChar = i < userInput.Length ? userInput[i] : (char?)null;
+                var sampleChar = sampleText[i];
+                var className = "";
+        
+                if (typedChar.HasValue)
+                {
+                    if (typedChar == sampleChar)
+                    {
+                        className = "correct";
+                    }
+                    else
+                    {
+                        className = "incorrect";
+                    }
+                }
+        
+                <span id="char-@i" class="@className" @key="@keyBase">@sampleChar</span>
+            }
+            @if (userInput.Length == sampleText.Length && !testCompleted && testStarted)
+            {
                 <span class="cursor" @key="@(sampleText.Length + "-cursor")"></span>
-          }
-      </p>
+            }
+        </p>
 
         <input
             value="@userInput"
@@ -74,10 +71,11 @@
 
 @if(showTranslation)
 {
-<div class="floating-translation" style="position: absolute; top: @((int)Math.Round(floatingTop))px; left: @((int)Math.Round(floatingLeft))px;">
+    <div class="floating-translation" style="position: absolute; top: @((int)Math.Round(floatingTop))px; left: @((int)Math.Round(floatingLeft))px;">
          @floatingTranslation
     </div>
 }
+
 <script>
     window.getElementPosition = (id) => {
         var el = document.getElementById(id);
@@ -153,6 +151,7 @@
             testCompleted = true;
             timer?.Stop();
             UpdateWPM(null, null);
+            NavigateToResultsPage(); // Add this line to navigate to the results page
         }
 
         if (showTranslation)
@@ -224,13 +223,10 @@
         var position = await JS.InvokeAsync<Position>("getElementPosition", "char-" + wordStart);
         if (position != null)
         {
-            Console.WriteLine($"Top: {position.top}, Left: {position.left}");
             floatingTop = position.top - 40;
             
             var wordWidth = (wordEnd - wordStart) * 10; 
             floatingLeft = position.left + (wordWidth / 2); 
-            
-            Console.WriteLine($"Top: {floatingTop}, Left: {floatingLeft}");
         }
 
         showTranslation = true;
@@ -272,18 +268,16 @@
     {
         string apiUrl = string.Empty;
 
-        if (ModeService.SelectedMode  == TextType.Words)
+        if (ModeService.SelectedMode == TextType.Words)
         {
             apiUrl = Configuration["TextApis:RandomWords"];
             var text = await Http.GetStringAsync(apiUrl);
-
             sampleText = text.Replace("[", "").Replace("]", "").Replace(",", " ").Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("  ", " ");
         }
         else if (ModeService.SelectedMode == TextType.BookQuote)
         {
             apiUrl = Configuration["TextApis:RandomBookQuote"];
             var text = await Http.GetStringAsync(apiUrl);
-            
             var quote = JObject.Parse(text)["quote"].ToString();
             sampleText = quote;
         }
@@ -302,7 +296,7 @@
         public double top { get; set; }
         public double left { get; set; }
     }
-    
+
     private async Task TranslateWord(string word)
     {
         var requestBody = new { text = word, target_lang = "de" };
@@ -313,5 +307,10 @@
             var result = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
             floatingTranslation = result["translated_text"];
         }
+    }
+
+    private void NavigateToResultsPage()
+    {
+        NavigationManager.NavigateTo($"/results?wpm={wpm}&accuracy={accuracy}");
     }
 }
