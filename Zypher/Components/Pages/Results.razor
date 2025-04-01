@@ -14,7 +14,7 @@
             </div>
             <div class="stat-item">
                 <div class="stat-label">Accuracy</div>
-                <div class="stat-value accuracy-result">@Accuracy.ToString("0.00")%</div>
+                <div class="stat-value accuracy-result">@Math.Round(Accuracy)%</div>
             </div>
         </div>
 
@@ -30,7 +30,7 @@
 
     [Parameter]
     [SupplyParameterFromQuery(Name = "accuracy")] // Match query param name if different from property
-    public double Accuracy { get; set; }
+    public decimal Accuracy { get; set; }
 
     private void GoToTest()
     {

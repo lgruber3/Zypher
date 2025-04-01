@@ -1,6 +1,7 @@
 ﻿@page "/"
 @using Zypher.Services 
 @using static BaseGame 
+@inject NavigationManager NavigationManager
 
 <PageTitle>Singleplayer</PageTitle>
 
@@ -170,6 +171,8 @@
         timer?.Stop();
         UpdateWPM(null, null); 
         await InvokeAsync(StateHasChanged);
+        
+        NavigationManager.NavigateTo($"/results?wpm={wpm}&accuracy={Math.Round(accuracy)}");
     }
 
     private void UpdateWPM(object? sender, System.Timers.ElapsedEventArgs? e)
