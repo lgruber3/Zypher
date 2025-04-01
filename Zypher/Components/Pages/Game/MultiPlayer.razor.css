@@ -20,3 +20,17 @@
 .player-progress-area {
     color: #f8f8f2;
 }
+
+.rocket-icon {
+    transition: left 0.3s ease-out;
+    z-index: 2;
+}
+
+.my-progress .rocket-icon {
+    animation: float-horizontal 2s ease-in-out infinite;
+}
+
+@keyframes float-horizontal {
+    0%, 100% { transform: translateY(-50%) rotate(90deg) translateX(0); }
+    50% { transform: translateY(-50%) rotate(90deg) translateX(-5px); }
+}
