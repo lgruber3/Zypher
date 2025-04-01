@@ -168,5 +168,6 @@ button:focus {
 }
 
 .info-text {
-    color: white;
+    font-size: 1rem;
+    color: rgba(224, 224, 224, 0.7);
 }

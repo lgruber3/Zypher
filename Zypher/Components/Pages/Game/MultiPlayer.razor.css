@@ -20,3 +20,26 @@
 .player-progress-area {
     color: #f8f8f2;
 }
+
+.connection-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 20px;
+}
+
+.connection-text {
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: #f8f8f2;
+}
+
+.start-btn {
+    font-size: 1.2rem;
+    background-color: #ff79c6;
+    color: #282a36;
+}
+
+.start-btn:hover {
+    background-color: #e667b2;
+}

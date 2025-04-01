@@ -3,7 +3,8 @@
     display: flex;
     background: #403F3F;
     width: 100vw;
-    height: 100vh;
+    min-height: 100vh;
+    height: 100%;
     flex-direction: column;
     font-family: "Courier Prime";
 }

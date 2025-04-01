@@ -23,7 +23,7 @@
             <p>WPM: <span class="wpm">@wpm</span></p>
             <p>Accuracy: <span class="accuracy">@accuracy.ToString("0.00")%</span></p>
         </div>
-        <button class="btn btn-primary mt-3" @onclick="LoadNextText" disabled="@string.IsNullOrEmpty(sampleText)">Next Text</button>
+        <button class="btn next-text-btn mt-3" @onclick="LoadNextText" disabled="@string.IsNullOrEmpty(sampleText)">Next Text</button>
     </ChildContent>
 </BaseGame>
 

@@ -13,21 +13,26 @@
 
 <PageTitle>Multiplayer Race</PageTitle>
 
+
 @if (isLoading)
 {
-    <p><em>Connecting to race server and joining game <strong>@GameCodeFromUrl?.ToUpperInvariant()</strong>...</em></p>
-    @if (!string.IsNullOrEmpty(loadingError))
-    {
-        <p class="text-danger">Error: @loadingError</p>
-    }
+    <div class="connection-container">
+        <p class="connection-text"><em>Connecting to race server and joining game <strong>@GameCodeFromUrl?.ToUpperInvariant()</strong>...</em></p>
+        @if (!string.IsNullOrEmpty(loadingError))
+        {
+            <p class="text-danger">Error: @loadingError</p>
+        }
+    </div>
 }
 else if (!isConnected || string.IsNullOrEmpty(gameId)) 
 {
-    <p class="text-danger">
-        <strong>Failed to join game '@(GameCodeFromUrl?.ToUpperInvariant() ?? "N/A")'.</strong><br />
-        Reason: @(loadingError ?? "Could not connect to the server or the game code is invalid/expired/already started.")<br />
-        Please <a href="/">go back</a> or try joining again with a valid code.
-    </p>
+    <div class="connection-container">
+        <p class="connection-text text-danger">
+            <strong>Failed to join game '@(GameCodeFromUrl?.ToUpperInvariant() ?? "N/A")'.</strong><br />
+            Reason: @(loadingError ?? "Could not connect to the server or the game code is invalid/expired/already started.")<br />
+            Please <a href="/">go back</a> or try joining again with a valid code.
+        </p>
+    </div>
 }
 else 
 {
@@ -64,7 +69,7 @@ else
             <ChildContent>
                  @if (isHost && currentGameState == GameStateEnum.Waiting)
                  {
-                     <button class="btn btn-success mb-3" @onclick="RequestStartGame_Click" disabled="@(!CanStartGame())">
+                     <button class="btn start-btn mb-3" @onclick="RequestStartGame_Click" disabled="@(!CanStartGame())">
                          Start Game (@players.Count @(players.Count == 1 ? "Player" : "Players"))
                      </button>
                      @if (!CanStartGame()) {

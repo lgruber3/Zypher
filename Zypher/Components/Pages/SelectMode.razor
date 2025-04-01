@@ -5,6 +5,7 @@
 @inject HttpClient Http
 @inject ModeService ModeService
 @inject NavigationManager NavigationManager
+ @inject UserService UserService
 
 <PageTitle>Zypher</PageTitle>
 
@@ -12,29 +13,29 @@
     <div class="container">
         @if (!isMultiplayer)
         {
-            <h1>Zypher</h1>
-            <h5 class="info info-text">Select your Game Mode!</h5>
+            <h1>Hello, @username!</h1>
+            <h5 class="info info-text">Select your Game Mode.</h5>
             
             <div class="wrappButtons">
-                <button class="btn btn-primary button" @onclick="SetSingleMode">Single Mode</button>
-                <button class="btn btn-primary button" @onclick="SetMultiplayerMode">Multiplayer Mode</button>
+                <button class="btn button mode-select-btn" @onclick="SetSingleMode">Singleplayer</button>
+                <button class="btn button mode-select-btn" @onclick="SetMultiplayerMode">Multiplayer</button>
             </div>
         }
         else
         {
             <h1>Multiplayer</h1>
             <div id="startContainer">
-                <button class="btn btn-secondary second" @onclick="CreateSession" disabled="@isCreating">
+                <button class="btn multiplayer-btn second" @onclick="CreateSession" disabled="@isCreating">
                     @(isCreating ? "Creating..." : "Create New Session")
                 </button>
             </div>
             <div style="width: 100%; display: flex; justify-content: center">
                 <hr style="margin: 20px 0; color: white; width: 80%"/>
             </div>
-            <h3 style="color: white; margin-top: 5vw">Enter existing Session</h3>
+            <h3 style="color: white; margin-top: 2vw">Enter existing Session</h3>
             <div class="input-container" style="display: flex; align-items: center; gap: 10px; width: fit-content; margin: auto;">
                 <input type="text" class="form-control" placeholder="6-digit code" @bind="enteredCode" maxlength="6" />
-                <button class="btn btn-success" @onclick="AcceptCode">Accept</button>
+                <button class="btn multiplayer-btn" @onclick="AcceptCode">Accept</button>
             </div>
         }
     </div>
@@ -51,6 +52,7 @@
     private HubConnection? hubConnection;
     private string? errorMessage;
     private bool isCreating = false;
+    private string username;
 
     protected override async Task OnInitializedAsync()
     {
@@ -66,6 +68,8 @@
         } catch (Exception ex) {
             errorMessage = $"Failed to connect: {ex.Message}";
         }
+
+        username = await UserService.GetUsernameAsync();
     }
 
     private Task HubConnection_Closed(Exception? arg)

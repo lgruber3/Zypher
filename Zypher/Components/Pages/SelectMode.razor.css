@@ -69,4 +69,19 @@ h1 {
     margin-bottom: 20px;
 }
 
+.mode-select-btn {
+    background-color: #8a2be2; /* Purple accent */
+    color: #e0e0e0; /* Light text */
+    border: none;
+    border-radius: 8px;
+    padding: 12px 24px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
 
+.multiplayer-btn {
+    background-color: #8a2be2; 
+    color: white;
+}
