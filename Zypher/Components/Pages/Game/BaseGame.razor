@@ -1,0 +1,205 @@
+﻿@* BaseGame.razor *@
+@using Microsoft.JSInterop
+@implements IAsyncDisposable 
+@inject IJSRuntime JS
+
+<div class="wrapper">
+    <div class="container">
+        <h1>@Title</h1> 
+        <h5 class="info-text">@InfoText</h5> 
+
+        @if (!string.IsNullOrEmpty(SampleText))
+        {
+            <p class="sample-text">
+                @for (int i = 0; i < SampleText.Length; i++)
+                {
+                    var keyBase = $"pos-{i}"; 
+
+                    if (i == CurrentInputLength && ShowCursor && IsActive) 
+                    {
+                        <span class="cursor" @key="@(keyBase + "-cursor")"></span>
+                    }
+
+                    var typedChar = i < CurrentUserInput.Length ? CurrentUserInput[i] : (char?)null;
+                    var sampleChar = SampleText[i];
+                    var className = "";
+
+                    if (typedChar.HasValue)
+                    {
+                        className = typedChar == sampleChar ? "correct" : "incorrect";
+                    }
+
+                    <span id="char-@i" class="@className" @key="@keyBase">@sampleChar</span>
+                }
+                @if (CurrentInputLength == SampleText.Length && ShowCursor && IsActive) 
+                {
+                    <span class="cursor" @key="@(SampleText.Length + "-cursor")"></span>
+                }
+            </p>
+        }
+        else
+        {
+            <p>Loading text...</p>
+        }
+
+         <input
+             @ref="inputElement"
+             value="@CurrentUserInput"
+              @oninput="HandleInput"
+             @onkeydown="HandleKeyDown"
+             class="typing-input"
+             placeholder="@(IsActive ? "Start typing..." : "Waiting...")"
+             style="opacity: 0; position: absolute; top: 0; left: 0; width: 80%; height: 38px; cursor: text;"
+             @onblur="FocusInput"
+             disabled="@(!IsActive)" 
+         />
+
+        @ChildContent 
+    </div>
+</div>
+
+@if (ShowTranslation)
+{
+    <div class="floating-translation" style="position: absolute; top: @((int)Math.Round(FloatingTop))px; left: @((int)Math.Round(FloatingLeft))px;">
+        @FloatingTranslationText
+    </div>
+}
+
+@code {
+    [Parameter] public string Title { get; set; } = "Zypher";
+    [Parameter] public string InfoText { get; set; } = "Press Ctrl + Space for Translation";
+    [Parameter] public string SampleText { get; set; } = ""; 
+    [Parameter] public string CurrentUserInput { get; set; } = ""; 
+    [Parameter] public bool IsActive { get; set; } = true; 
+    [Parameter] public bool ShowCursor { get; set; } = true;
+    [Parameter] public RenderFragment? ChildContent { get; set; } 
+
+    [Parameter] public bool ShowTranslation { get; set; }
+    [Parameter] public string FloatingTranslationText { get; set; } = "";
+    [Parameter] public double FloatingTop { get; set; }
+    [Parameter] public double FloatingLeft { get; set; }
+
+    [Parameter] public EventCallback<string> OnInputChange { get; set; } 
+    [Parameter] public EventCallback<KeyboardEventArgs> OnRawKeyDown { get; set; } 
+    [Parameter] public EventCallback<TranslationRequestArgs> OnTranslationRequested { get; set; } 
+
+    private ElementReference inputElement;
+    private string inputValue = ""; 
+    private int CurrentInputLength => CurrentUserInput?.Length ?? 0;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && IsActive)
+        {
+            await FocusInput();
+        }
+    }
+
+    public async Task FocusInput()
+    {
+        try
+        {
+            await inputElement.FocusAsync();
+        }
+        catch (Exception ex) {
+             Console.WriteLine($"Error focusing input: {ex.Message}");
+        }
+    }
+
+    private async Task HandleInput(ChangeEventArgs e)
+    {
+        if (!IsActive) return;
+
+        inputValue = e.Value?.ToString() ?? "";
+        await OnInputChange.InvokeAsync(inputValue);
+    }
+    
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (!IsActive) return;
+        
+        await OnRawKeyDown.InvokeAsync(e); 
+
+        if (e.CtrlKey && (e.Key == " " || e.Key == "Spacebar")) 
+        {
+            await RequestTranslation();
+        }
+
+        // Optional: Reset inputValue if Backspace is used, although parent state (CurrentUserInput) is the source of truth.
+        if (e.Key == "Backspace")
+        {
+           // The parent component should handle the actual reduction of CurrentUserInput
+           // and pass the new value back down.
+           // Optionally, update local inputValue if needed for direct input element control.
+           // inputValue = CurrentUserInput[0..^1]; // Example if needed, but rely on parent.
+        }
+    }
+
+    private async Task RequestTranslation()
+    {
+        if (string.IsNullOrEmpty(SampleText) || string.IsNullOrEmpty(CurrentUserInput))
+        {
+            return; 
+        }
+
+        int pos = CurrentInputLength;
+        if (pos >= SampleText.Length) pos = SampleText.Length - 1;
+        if (pos < 0) pos = 0;
+
+        int wordStart = pos;
+        while (wordStart > 0 && wordStart < SampleText.Length && SampleText[wordStart - 1] != ' ') wordStart--;
+        
+        int wordEnd = pos;
+        while (wordEnd < SampleText.Length && SampleText[wordEnd] != ' ') wordEnd++;
+        
+        if (wordStart >= SampleText.Length) wordStart = SampleText.Length -1; 
+        if (wordStart < 0) wordStart = 0;
+        if (wordEnd > SampleText.Length) wordEnd = SampleText.Length; 
+
+        if (wordStart >= wordEnd) return; 
+
+        string currentWord = SampleText.Substring(wordStart, wordEnd - wordStart).Trim();
+        if (string.IsNullOrEmpty(currentWord)) return;
+        
+        var position = await JS.InvokeAsync<Position>("getElementPosition", $"char-{wordStart}");
+        if (position != null)
+        {
+            var wordCharWidthEstimate = 10; 
+            var wordWidth = (wordEnd - wordStart) * wordCharWidthEstimate; 
+            var calculatedLeft = position.left + (wordWidth / 2); 
+            var calculatedTop = position.top - 40; 
+
+            await OnTranslationRequested.InvokeAsync(new TranslationRequestArgs(currentWord, calculatedTop, calculatedLeft));
+        }
+        else
+        {
+             await OnTranslationRequested.InvokeAsync(new TranslationRequestArgs(currentWord, 0, 0)); 
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await JS.InvokeVoidAsync("eval", @"
+            window.getElementPosition = (id) => {
+                var el = document.getElementById(id);
+                if (el) {
+                    var rect = el.getBoundingClientRect();
+                    return { top: rect.top + window.scrollY, left: rect.left + window.scrollX };
+                }
+                return null;
+            }");
+    }
+    
+    public async ValueTask DisposeAsync()
+    {
+       await Task.CompletedTask; 
+    }
+
+    public class Position
+    {
+        public double top { get; set; }
+        public double left { get; set; }
+    }
+
+    public record TranslationRequestArgs(string Word, double SuggestedTop, double SuggestedLeft);
+}

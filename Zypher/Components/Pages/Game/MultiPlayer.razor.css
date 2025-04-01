@@ -1,0 +1,22 @@
+﻿.stats {
+    margin-top: 20px;
+    font-size: 1.2rem;
+    display: flex;
+    justify-content: space-around;
+    padding: 10px 0;
+    font-weight: 500;
+    color: #f8f8f2;
+}
+
+.wpm {
+    color: #8a2be2;
+    font-weight: 700;
+}
+
+.accuracy {
+    color: #ff79c6;
+}
+
+.player-progress-area {
+    color: #f8f8f2;
+}

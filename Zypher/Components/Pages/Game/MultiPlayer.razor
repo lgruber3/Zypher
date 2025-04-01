@@ -1,0 +1,754 @@
+﻿@page "/multiplayer/{GameCodeFromUrl}"
+
+@using Microsoft.AspNetCore.SignalR.Client
+@using static BaseGame 
+@using System.Timers
+@using System.Linq
+@using System.Collections.Generic
+@using System 
+@using Zypher.Services
+@implements IAsyncDisposable
+@implements IDisposable
+@inject UserService UserService
+
+<PageTitle>Multiplayer Race</PageTitle>
+
+@if (isLoading)
+{
+    <p><em>Connecting to race server and joining game <strong>@GameCodeFromUrl?.ToUpperInvariant()</strong>...</em></p>
+    @if (!string.IsNullOrEmpty(loadingError))
+    {
+        <p class="text-danger">Error: @loadingError</p>
+    }
+}
+else if (!isConnected || string.IsNullOrEmpty(gameId)) 
+{
+    <p class="text-danger">
+        <strong>Failed to join game '@(GameCodeFromUrl?.ToUpperInvariant() ?? "N/A")'.</strong><br />
+        Reason: @(loadingError ?? "Could not connect to the server or the game code is invalid/expired/already started.")<br />
+        Please <a href="/">go back</a> or try joining again with a valid code.
+    </p>
+}
+else 
+{
+    <div class="game-area">
+
+        @if (currentGameState == GameStateEnum.CountingDown && countdownValue > 0)
+        {
+            <div class="countdown-overlay">
+                <h1>@countdownValue</h1>
+            </div>
+        }
+         else if (currentGameState == GameStateEnum.CountingDown && countdownValue == 0 && showGoMessage)
+         {
+             <div class="countdown-overlay go-message">
+                 <h1>GO!</h1>
+             </div>
+         }
+
+
+        <BaseGame @ref="baseGameComponent"
+                  Title='@($"Race - {gameId}")'
+                  InfoText="@GetInfoText()"
+                  SampleText="@sampleText"
+                  CurrentUserInput="@localUserInput"
+                  IsActive="@(currentGameState == GameStateEnum.Racing)" 
+                  ShowCursor="true"
+                  ShowTranslation="@showTranslation"
+                  FloatingTranslationText="@floatingTranslation"
+                  FloatingTop="@floatingTop"
+                  FloatingLeft="@floatingLeft"
+                  OnInputChange="HandleLocalInputChange"
+                  OnRawKeyDown="HandleLocalKeyDown"
+                  OnTranslationRequested="HandleTranslationRequest">
+            <ChildContent>
+                 @if (isHost && currentGameState == GameStateEnum.Waiting)
+                 {
+                     <button class="btn btn-success mb-3" @onclick="RequestStartGame_Click" disabled="@(!CanStartGame())">
+                         Start Game (@players.Count @(players.Count == 1 ? "Player" : "Players"))
+                     </button>
+                     @if (!CanStartGame()) {
+                         <small class="d-block text-muted mb-3">Waiting for at least 1 other player to start.</small> 
+                     }
+                 }
+                 else if (!isHost && currentGameState == GameStateEnum.Waiting)
+                 {
+                     <p class="mb-3"><em>Waiting for the host (@GetHostName()) to start the game...</em></p>
+                 }
+
+                <div class="player-progress-area mt-3 mb-3 border p-2 rounded">
+                    <h5>Race Progress: (Host: @GetHostName())</h5>
+                    @if (players.Any())
+                    {
+                        @foreach (var player in players.Values.OrderByDescending(p => p.Position).ThenBy(p => p.Name)) 
+                        {
+                            bool isCurrentPlayer = player.ConnectionId == myConnectionId;
+                            bool isCurrentHost = player.ConnectionId == hostConnectionId;
+                            string nameSuffix = isCurrentPlayer ? " (You)" : (isCurrentHost ? " (Host)" : "");
+                            <div class="player-progress mb-2 @(isCurrentPlayer ? "my-progress" : "")">
+                                <span>@player.Name@nameSuffix (@(player.Wpm) WPM):</span>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar @GetProgressBarClass(player)" role="progressbar"
+                                         style="width: @Math.Round(CalculateProgressPercentage(player.Position))%;"
+                                         aria-valuenow="@Math.Round((decimal)player.Position)"
+                                         aria-valuemin="0"
+                                         aria-valuemax="@(sampleText?.Length ?? 100)">
+                                        @(CalculateProgressPercentage(player.Position))%
+                                    </div>
+                                </div>
+                                 @if (isCurrentPlayer) 
+                                 {
+                                    <small class="text-muted d-block">Accuracy: @localAccuracy.ToString("0.0")%</small>
+                                 }
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <p><em>Waiting for players...</em></p>
+                    }
+                </div>
+
+                <button class="btn btn-danger mt-3" @onclick="LeaveGame_Click">Leave Game</button>
+            </ChildContent>
+        </BaseGame>
+    </div>
+}
+
+<style>
+    .countdown-overlay {
+        position: fixed; 
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        color: white;
+        font-size: 5em; 
+         pointer-events: none; 
+    }
+    .go-message h1 {
+         color: #28a745; 
+    }
+
+    .player-progress.my-progress span {
+        font-weight: bold;
+    }
+     .progress-bar.bg-success { }
+     .progress-bar.bg-primary { }
+     .progress-bar.bg-info { } 
+     .progress-bar { } 
+
+     .game-area BaseGame {
+         transition: opacity 0.3s ease-in-out;
+     }
+    .game-area .counting-down BaseGame { 
+         opacity: 0.5;
+         pointer-events: none;
+     }
+
+</style>
+
+
+@code {
+    [Parameter] public string GameCodeFromUrl { get; set; } = "";
+
+    [Inject] NavigationManager Navigation { get; set; } = default!;
+    [Inject] IJSRuntime JS { get; set; } = default!;
+    [Inject] HttpClient Http { get; set; } = default!;
+
+    private BaseGame? baseGameComponent;
+    private HubConnection? hubConnection;
+    private System.Timers.Timer? localWpmTimer;
+    private System.Timers.Timer? countdownDisplayTimer;
+
+    private string? gameId = null;
+    private string localPlayerName = "Typing Champ";
+    private string sampleText = "";
+    private string localUserInput = "";
+    private Dictionary<string, PlayerStateDto> players = new();
+    private string? loadingError = null;
+    private bool isLoading = true;
+    private bool isConnected = false;
+    private string? myConnectionId = null;
+
+    private GameStateEnum currentGameState = GameStateEnum.Waiting;
+    private string? hostConnectionId = null;
+    private bool isHost = false;
+    private int countdownValue = 0;
+    private bool showGoMessage = false;
+
+    private int localWpm = 0;
+    private double localAccuracy = 100;
+    private DateTime localStartTime;
+    private bool localTestStarted = false; 
+    private int localCumulativeCorrect = 0;
+    private int localCumulativeTotal = 0;
+
+    private bool showTranslation = false;
+    private string floatingTranslation = "";
+    private double floatingTop = 0;
+    private double floatingLeft = 0;
+
+    public class PlayerStateDto
+    {
+        public string ConnectionId { get; set; } = "";
+        public string Name { get; set; } = "";
+        public int Position { get; set; }
+        public int Wpm { get; set; } 
+        public double Accuracy { get; set; } 
+        public bool Finished { get; set; } 
+    }
+
+     public class HubGameStateDto
+     {
+         public string GameCode { get; set; } = "";
+         public string SampleText { get; set; } = "";
+         public List<HubPlayerState> Players { get; set; } = new();
+         public string? HostConnectionId { get; set; }
+         public GameStateEnum CurrentState { get; set; }
+     }
+
+      public class HubPlayerState {
+          public string ConnectionId { get; set; } = "";
+          public string Name { get; set; } = "";
+          public int Position { get; set; }
+      }
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        isConnected = false;
+        loadingError = null;
+        localPlayerName = await GetPlayerNameFromClientSource();
+
+        if (string.IsNullOrWhiteSpace(GameCodeFromUrl))
+        {
+            loadingError = "No game code provided in the URL.";
+            isLoading = false;
+            return;
+        }
+
+        StateHasChanged(); 
+
+        string hubUrl = "/typinghub";
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri(hubUrl))
+            .WithAutomaticReconnect()
+            .Build();
+
+        ConfigureHubHandlers(); 
+
+        hubConnection.Closed += OnConnectionClosed;
+
+        try
+        {
+            await hubConnection.StartAsync();
+            isConnected = true;
+            myConnectionId = hubConnection.ConnectionId; 
+            Console.WriteLine($"SignalR Connected. My Connection ID: {myConnectionId}");
+            await AttemptJoinGame(GameCodeFromUrl);
+        }
+        catch (Exception ex)
+        {
+            loadingError = $"Failed to connect to server: {ex.Message}";
+            Console.WriteLine($"Error connecting to SignalR Hub: {ex.Message}");
+            isConnected = false;
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ConfigureHubHandlers()
+    {
+        if (hubConnection == null) return;
+
+        hubConnection.On<HubGameStateDto>("ReceiveFullGameState", (gameState) => {
+            Console.WriteLine($"Received Full Game State for {gameState.GameCode}. State: {gameState.CurrentState}, Host: {gameState.HostConnectionId}, Players: {gameState.Players.Count}");
+
+            gameId = gameState.GameCode.ToUpperInvariant();
+            sampleText = gameState.SampleText;
+            hostConnectionId = gameState.HostConnectionId;
+            currentGameState = gameState.CurrentState; 
+
+            isHost = !string.IsNullOrEmpty(hostConnectionId) && hostConnectionId == myConnectionId;
+            Console.WriteLine($"Am I host? {isHost}");
+
+            localUserInput = "";
+            localTestStarted = false;
+            localWpm = 0;
+            localAccuracy = 100;
+            localCumulativeCorrect = 0;
+            localCumulativeTotal = 0;
+            StopLocalWpmTimer(); 
+
+             players = gameState.Players.Select(p => new PlayerStateDto {
+                 ConnectionId = p.ConnectionId,
+                 Name = p.Name,
+                 Position = p.Position,
+                 Wpm = 0, 
+                 Accuracy = 100,
+                 Finished = !string.IsNullOrEmpty(sampleText) && p.Position >= sampleText.Length 
+             }).ToDictionary(p => p.ConnectionId);
+
+
+             countdownValue = 0;
+             showGoMessage = false;
+             DisposeCountdownTimer(); 
+
+            loadingError = null;
+            isLoading = false;
+
+            InvokeAsync(StateHasChanged);
+
+            if (currentGameState == GameStateEnum.Racing)
+            {
+                 _ = FocusInputAfterDelay();
+            }
+        });
+
+        hubConnection.On<string>("JoinError", (errorMessage) => {
+            loadingError = errorMessage;
+            gameId = null;
+            isLoading = false;
+            isConnected = hubConnection?.State == HubConnectionState.Connected;
+            InvokeAsync(StateHasChanged);
+        });
+
+        hubConnection.On<HubPlayerState>("PlayerJoined", (newPlayer) => {
+             Console.WriteLine($"Player Joined: {newPlayer.Name} ({newPlayer.ConnectionId})");
+             if (players.TryAdd(newPlayer.ConnectionId, new PlayerStateDto {
+                  ConnectionId = newPlayer.ConnectionId, Name = newPlayer.Name, Position = newPlayer.Position, Wpm = 0, Accuracy = 100, Finished = false
+             })) { InvokeAsync(StateHasChanged); }
+        });
+
+        hubConnection.On<string>("PlayerLeft", (connectionId) => {
+             Console.WriteLine($"Player Left: {connectionId}");
+             if (players.Remove(connectionId)) { InvokeAsync(StateHasChanged); }
+        });
+
+        hubConnection.On<string>("NewHostAssigned", (newHostId) => {
+            Console.WriteLine($"New host assigned by server: {newHostId}");
+            hostConnectionId = newHostId;
+            isHost = !string.IsNullOrEmpty(hostConnectionId) && hostConnectionId == myConnectionId;
+            InvokeAsync(StateHasChanged); 
+        });
+
+
+        hubConnection.On<string, int>("PlayerProgressUpdated", (connectionId, position) => {
+            if (players.TryGetValue(connectionId, out var player))
+            {
+                player.Position = position;
+                 bool justFinished = !player.Finished && !string.IsNullOrEmpty(sampleText) && position >= sampleText.Length;
+                 player.Finished = !string.IsNullOrEmpty(sampleText) && position >= sampleText.Length;
+
+                if(connectionId == myConnectionId)
+                {
+                    UpdateLocalStats(); 
+                    player.Wpm = localWpm;
+                    player.Accuracy = localAccuracy; 
+
+                    if(justFinished) {
+                        Console.WriteLine($"Player {localPlayerName} finished.");
+                        StopLocalWpmTimer(); 
+                        UpdateLocalStats(); 
+                        player.Wpm = localWpm; 
+                    }
+                }
+                InvokeAsync(StateHasChanged);
+            }
+        });
+
+         hubConnection.On<int>("ReceiveCountdownState", (value) => {
+             Console.WriteLine($"Received Countdown Tick: {value}");
+             currentGameState = GameStateEnum.CountingDown; 
+             countdownValue = value;
+             showGoMessage = false; 
+             DisposeCountdownTimer(); 
+             InvokeAsync(StateHasChanged);
+         });
+
+         hubConnection.On("GameStarted", async () => {
+             Console.WriteLine("Received GameStarted signal from server.");
+             currentGameState = GameStateEnum.Racing;
+             countdownValue = 0; 
+             showGoMessage = true; 
+
+             DisposeCountdownTimer(); 
+             countdownDisplayTimer = new System.Timers.Timer(1500); 
+             countdownDisplayTimer.Elapsed += HideGoMessage;
+             countdownDisplayTimer.AutoReset = false;
+             countdownDisplayTimer.Start();
+
+
+             localUserInput = ""; 
+             localTestStarted = false;
+             localWpm = 0;
+             localAccuracy = 100;
+             localCumulativeCorrect = 0;
+             localCumulativeTotal = 0;
+             StopLocalWpmTimer(); 
+
+
+             await InvokeAsync(StateHasChanged);
+             await FocusInputAfterDelay(); 
+         });
+
+         hubConnection.On<string>("StartGameError", (errorMessage) => {
+             Console.WriteLine($"Host start error: {errorMessage}");
+             loadingError = $"Start Game Failed: {errorMessage}"; 
+             InvokeAsync(StateHasChanged);
+              _ = Task.Delay(3000).ContinueWith(_ => { loadingError = null; InvokeAsync(StateHasChanged); }); 
+         });
+
+    }
+
+     private void HideGoMessage(object? sender, ElapsedEventArgs e)
+     {
+         showGoMessage = false;
+         DisposeCountdownTimer(); 
+         InvokeAsync(StateHasChanged);
+     }
+
+    private async Task FocusInputAfterDelay()
+    {
+        await Task.Delay(150); 
+        if (baseGameComponent != null && currentGameState == GameStateEnum.Racing)
+        {
+             await baseGameComponent.FocusInput();
+        }
+    }
+
+    private async Task AttemptJoinGame(string code)
+    {
+        if (!isConnected || hubConnection == null || myConnectionId == null) 
+        {
+            loadingError = "Not connected to server.";
+            isLoading = false;
+            StateHasChanged();
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            loadingError = "Invalid game code provided.";
+            isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        loadingError = null; 
+
+        try
+        {
+             await hubConnection.InvokeAsync("JoinGame", code.ToUpperInvariant(), localPlayerName);
+             Console.WriteLine($"Attempted to join game {code.ToUpperInvariant()} as {localPlayerName}");
+        }
+        catch (Exception ex)
+        {
+            loadingError = $"Error joining game: {ex.Message}";
+            Console.WriteLine($"Error invoking JoinGame: {ex.Message}");
+            isLoading = false;
+             isConnected = false; 
+            StateHasChanged();
+        }
+    }
+
+     private async Task RequestStartGame_Click()
+     {
+         if (!isHost || currentGameState != GameStateEnum.Waiting || hubConnection == null || !CanStartGame()) return;
+
+         Console.WriteLine("Host clicking Start Game button.");
+         try
+         {
+             await hubConnection.InvokeAsync("RequestStartGame");
+         }
+         catch (Exception ex)
+         {
+              Console.WriteLine($"Error invoking RequestStartGame: {ex.Message}");
+              loadingError = "Error starting game. Please try again.";
+              StateHasChanged();
+              _ = Task.Delay(3000).ContinueWith(_ => { loadingError = null; InvokeAsync(StateHasChanged); });
+         }
+     }
+
+
+    private Task LeaveGame_Click()
+    {
+        gameId = null; sampleText = ""; localUserInput = ""; players.Clear();
+        currentGameState = GameStateEnum.Waiting; 
+        StopLocalWpmTimer(); DisposeCountdownTimer();
+        localTestStarted = false;
+        isLoading = false; loadingError = null; isHost = false; hostConnectionId = null;
+
+        Navigation.NavigateTo("/"); 
+
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+
+    private async Task HandleLocalInputChange(string newInput)
+    {
+        if (currentGameState != GameStateEnum.Racing || string.IsNullOrEmpty(sampleText)) return;
+
+        if (!localTestStarted && !string.IsNullOrEmpty(newInput))
+        {
+            localStartTime = DateTime.Now;
+            localTestStarted = true;
+            StartLocalWpmTimer();
+            Console.WriteLine("Local typing test started.");
+        }
+
+        if (newInput.Length > sampleText.Length)
+        {
+            newInput = newInput.Substring(0, sampleText.Length);
+        }
+        localUserInput = newInput;
+
+        if (isConnected && hubConnection?.State == HubConnectionState.Connected)
+        {
+            try
+            {
+                await hubConnection.InvokeAsync("UpdateProgress", localUserInput.Length);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error sending progress: {ex.Message}");
+            }
+        }
+
+        UpdateLocalStats();
+
+        if (showTranslation) showTranslation = false;
+
+        await InvokeAsync(StateHasChanged); 
+    }
+
+     private Task HandleLocalKeyDown(KeyboardEventArgs e)
+     {
+         if (currentGameState != GameStateEnum.Racing || string.IsNullOrEmpty(sampleText) || !localTestStarted) return Task.CompletedTask;
+
+         if (e.Key.Length == 1 && !e.CtrlKey && !e.AltKey && !e.MetaKey && !char.IsControl(e.Key[0]) && e.Key != " ")
+         {
+             int currentIndex = localUserInput.Length; 
+             if (currentIndex < sampleText.Length)
+             {
+                 localCumulativeTotal++; 
+                 if (e.Key == sampleText[currentIndex].ToString())
+                 {
+                     localCumulativeCorrect++;
+                 }
+                 localAccuracy = localCumulativeTotal > 0 ? ((double)localCumulativeCorrect / localCumulativeTotal) * 100.0 : 100.0;
+             }
+         }
+         else if (e.Key == "Backspace")
+         {
+         }
+         else if (e.CtrlKey && (e.Key == " " || e.Key == "Spacebar"))
+         {
+         }
+
+         return Task.CompletedTask;
+     }
+
+    private void UpdateLocalStats()
+    {
+        if (localTestStarted && currentGameState == GameStateEnum.Racing) 
+        {
+            var elapsedSeconds = (DateTime.Now - localStartTime).TotalSeconds;
+             if (elapsedSeconds > 0.5) 
+             {
+                  localWpm = (int)Math.Round((localUserInput.Length / 5.0) / (elapsedSeconds / 60.0));
+             }
+             else {
+                 localWpm = 0; 
+             }
+        }
+        else
+        {
+            localWpm = 0; 
+        }
+
+        if(myConnectionId != null && players.TryGetValue(myConnectionId, out var localPlayerDto)) {
+            localPlayerDto.Wpm = localWpm;
+            localPlayerDto.Accuracy = localAccuracy; 
+        }
+    }
+
+    private void StartLocalWpmTimer()
+    {
+         StopLocalWpmTimer(); 
+         localWpmTimer = new System.Timers.Timer(1000); 
+         localWpmTimer.Elapsed += OnLocalWpmTick;
+         localWpmTimer.AutoReset = true;
+         localWpmTimer.Start();
+    }
+
+    private void StopLocalWpmTimer()
+    {
+        localWpmTimer?.Stop();
+    }
+
+     private void OnLocalWpmTick(object? sender, ElapsedEventArgs e)
+     {
+         if(currentGameState == GameStateEnum.Racing && localTestStarted)
+         {
+             UpdateLocalStats();
+             InvokeAsync(StateHasChanged); 
+         }
+     }
+
+    private async Task HandleTranslationRequest(TranslationRequestArgs args)
+    {
+        if (string.IsNullOrEmpty(args.Word)) return;
+        floatingTranslation = "Translating...";
+        floatingTop = args.SuggestedTop;
+        floatingLeft = args.SuggestedLeft;
+        showTranslation = true;
+        StateHasChanged();
+        await TranslateWordLocally(args.Word);
+    }
+
+    private async Task TranslateWordLocally(string word)
+    {
+        try {
+            var requestBody = new { text = word, target_lang = "de" }; 
+            var response = await Http.PostAsJsonAsync("http://localhost:8000/translate", requestBody); 
+            if (response.IsSuccessStatusCode) {
+                var result = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+                floatingTranslation = result?["translated_text"] ?? "Error";
+            } else {
+                floatingTranslation = $"Error: {response.StatusCode}";
+            }
+        } catch (Exception ex) {
+            floatingTranslation = $"Translation service error: {ex.Message}";
+        }
+        showTranslation = true; 
+        StateHasChanged();
+    }
+
+     private double CalculateProgressPercentage(int position)
+     {
+         if (string.IsNullOrEmpty(sampleText) || sampleText.Length == 0) return 0;
+         int validPosition = Math.Clamp(position, 0, sampleText.Length);
+         return Math.Round((double)validPosition / sampleText.Length * 100.0, 1);
+     }
+
+     private string GetHostName()
+     {
+         if (hostConnectionId != null && players.TryGetValue(hostConnectionId, out var hostPlayer))
+         {
+             return hostPlayer.Name;
+         }
+         return "Unknown";
+     }
+
+     private bool CanStartGame()
+     {
+         return players.Count >= 2; 
+     }
+
+     private string GetInfoText()
+     {
+         return currentGameState switch
+         {
+             GameStateEnum.Waiting => isHost ? "Click 'Start Game' when ready." : $"Waiting for {GetHostName()} to start...",
+             GameStateEnum.CountingDown => "Get Ready...",
+             GameStateEnum.Racing => "Type the text below!",
+             _ => "Loading game...",
+         };
+     }
+
+      private string GetProgressBarClass(PlayerStateDto player)
+      {
+          if (player.Finished) return "bg-success"; 
+          if (player.ConnectionId == myConnectionId) return "bg-primary"; 
+          if (player.ConnectionId == hostConnectionId) return "bg-info"; 
+          return ""; 
+      }
+
+
+    private async Task<string> GetPlayerNameFromClientSource()
+    {
+        string name = $"Player_{new Random().Next(100, 999)}"; 
+        try
+        {
+            name = await UserService.GetUsernameAsync();
+        }
+        catch (Exception ex) {
+           Console.WriteLine($"Error getting player name from JS: {ex.Message}. Using default.");
+        }
+         return name.Length > 20 ? name.Substring(0, 20) : name;
+    }
+
+    private Task OnConnectionClosed(Exception? exception)
+    {
+        loadingError = $"Connection lost: {exception?.Message ?? "Disconnected."}";
+        isConnected = false;
+        gameId = null; sampleText = ""; localUserInput = ""; players.Clear();
+        currentGameState = GameStateEnum.Waiting; 
+        StopLocalWpmTimer(); DisposeCountdownTimer();
+        localTestStarted = false;
+        isLoading = false; isHost = false; hostConnectionId = null; myConnectionId = null;
+
+        return InvokeAsync(StateHasChanged); 
+    }
+
+     public void Dispose()
+     {
+         Dispose(true);
+         GC.SuppressFinalize(this);
+     }
+
+     protected virtual void Dispose(bool disposing)
+     {
+         if (disposing)
+         {
+             StopLocalWpmTimer(); 
+             localWpmTimer?.Dispose(); 
+
+             DisposeCountdownTimer(); 
+         }
+     }
+
+     private void DisposeCountdownTimer()
+     {
+         countdownDisplayTimer?.Stop();
+         countdownDisplayTimer?.Dispose();
+         countdownDisplayTimer = null;
+     }
+
+    public async ValueTask DisposeAsync()
+    {
+         Dispose(); 
+
+        if (hubConnection != null)
+        {
+            hubConnection.Closed -= OnConnectionClosed;
+            hubConnection.Remove("ReceiveFullGameState");
+            hubConnection.Remove("JoinError");
+            hubConnection.Remove("PlayerJoined");
+            hubConnection.Remove("PlayerLeft");
+             hubConnection.Remove("NewHostAssigned");
+            hubConnection.Remove("PlayerProgressUpdated");
+            hubConnection.Remove("ReceiveCountdownState");
+            hubConnection.Remove("GameStarted");
+            hubConnection.Remove("StartGameError");
+
+            await hubConnection.DisposeAsync();
+        }
+    }
+
+     public enum GameStateEnum 
+     {
+         Waiting,
+         CountingDown,
+         Racing,
+         Finished
+     }
+
+} 

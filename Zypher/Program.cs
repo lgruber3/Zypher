@@ -9,6 +9,12 @@ using Zypher.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// listen any ip
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenAnyIP(5000);
+});
+
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 

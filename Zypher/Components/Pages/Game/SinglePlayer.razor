@@ -1,0 +1,277 @@
+﻿@page "/"
+@using Zypher.Services 
+@using static BaseGame 
+
+<PageTitle>Singleplayer</PageTitle>
+
+<BaseGame @ref="baseGameComponent"
+          Title="Singleplayer"
+          SampleText="@sampleText"
+          CurrentUserInput="@userInput"
+          IsActive="@(!testCompleted)"
+          ShowCursor="true"
+          ShowTranslation="@showTranslation"
+          FloatingTranslationText="@floatingTranslation"
+          FloatingTop="@floatingTop"
+          FloatingLeft="@floatingLeft"
+          OnInputChange="HandleUserInput"
+          OnRawKeyDown="HandleKeyDown"
+          OnTranslationRequested="HandleTranslationRequest">
+    <ChildContent>
+        <div class="stats">
+            <p>WPM: <span class="wpm">@wpm</span></p>
+            <p>Accuracy: <span class="accuracy">@accuracy.ToString("0.00")%</span></p>
+        </div>
+        <button class="btn btn-primary mt-3" @onclick="LoadNextText" disabled="@string.IsNullOrEmpty(sampleText)">Next Text</button>
+    </ChildContent>
+</BaseGame>
+
+@code {
+    [Inject] IConfiguration Configuration { get; set; } = default!;
+    [Inject] HttpClient Http { get; set; } = default!;
+    [Inject] ModeService ModeService { get; set; } = default!;
+
+    private BaseGame? baseGameComponent;
+
+    private string sampleText = "";
+    private string userInput = "";
+    private DateTime startTime;
+    private bool testStarted = false;
+    private int wpm = 0;
+    private double accuracy = 100;
+    private System.Timers.Timer? timer;
+    private bool testCompleted = false;
+
+    private int cumulativeCorrect = 0;
+    private int cumulativeTotal = 0;
+
+    private string floatingTranslation = "";
+    private double floatingTop = 0;
+    private double floatingLeft = 0;
+    private bool showTranslation = false;
+    private bool isLoadingText = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        timer = new System.Timers.Timer(1000);
+        timer.Elapsed += UpdateWPM;
+        timer.AutoReset = true;
+
+        ModeService.OnModeChanged += OnModeChanged; 
+        await LoadNewSampleText(); 
+    }
+
+    private async void OnModeChanged()
+    {
+        await LoadNextText();
+        await InvokeAsync(StateHasChanged); 
+    }
+
+    private async Task HandleUserInput(string newInput)
+    {
+        if (testCompleted || isLoadingText) return;
+
+        if (!testStarted && !string.IsNullOrEmpty(newInput))
+        {
+            startTime = DateTime.Now;
+            testStarted = true;
+            timer?.Start();
+        }
+
+        if (newInput.Length > sampleText.Length)
+        {
+            newInput = newInput.Substring(0, sampleText.Length);
+        }
+
+        userInput = newInput; 
+
+        if (userInput.Length == sampleText.Length && !string.IsNullOrEmpty(sampleText))
+        {
+            await CompleteTest();
+        }
+
+        if (showTranslation)
+        {
+            showTranslation = false;
+        }
+
+        await InvokeAsync(StateHasChanged); 
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (testCompleted || isLoadingText) return;
+        if (!testStarted) return; 
+
+        if (e.Key.Length == 1 && !e.CtrlKey && !e.AltKey && !e.MetaKey && e.Key != "Backspace" && e.Key != "Delete" && e.Key != "Enter" && e.Key != "Tab" && e.Key != "Shift") // Basic filter
+        {
+             int currentIndex = userInput.Length; 
+             if (currentIndex < sampleText.Length)
+             {
+                cumulativeTotal++;
+                if (e.Key == sampleText[currentIndex].ToString())
+                {
+                    cumulativeCorrect++;
+                }
+                 accuracy = cumulativeTotal > 0 ? (cumulativeCorrect / (double)cumulativeTotal) * 100 : 100;
+             }
+        }
+        else if (e.Key == "Backspace")
+        {
+            // Backspace logic is tricky for accuracy. Common approaches:
+            // 1. Ignore backspace for accuracy (simplest).
+            // 2. Penalize accuracy on backspace.
+            // 3. Only allow backspace if the *previous* char was wrong, and don't penalize further.
+            // Let's stick with simple: Backspace doesn't directly impact accuracy score here,
+            // but the subsequent correct/incorrect typing will. The parent controls the input string.
+        }
+
+        await InvokeAsync(StateHasChanged); 
+    }
+
+    private async Task HandleTranslationRequest(TranslationRequestArgs args)
+    {
+        if (string.IsNullOrEmpty(args.Word)) return;
+
+        floatingTranslation = "Translating..."; 
+        showTranslation = true;
+        floatingTop = args.SuggestedTop;
+        floatingLeft = args.SuggestedLeft;
+        StateHasChanged(); 
+
+        try
+        {
+            var requestBody = new { text = args.Word, target_lang = "de" };
+
+            var response = await Http.PostAsJsonAsync("http://localhost:8000/translate", requestBody); 
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+                floatingTranslation = result?["translated_text"] ?? "Error";
+            }
+            else
+            {
+                 floatingTranslation = $"Error: {response.StatusCode}";
+            }
+        }
+        catch (Exception ex)
+        {
+            floatingTranslation = $"Error: {ex.Message}";
+        }
+
+        showTranslation = true; 
+        StateHasChanged(); 
+    }
+    
+    private async Task CompleteTest()
+    {
+        testCompleted = true;
+        timer?.Stop();
+        UpdateWPM(null, null); 
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdateWPM(object? sender, System.Timers.ElapsedEventArgs? e)
+    {
+        if (testStarted && !testCompleted)
+        {
+            var elapsedMinutes = (DateTime.Now - startTime).TotalMinutes;
+            wpm = elapsedMinutes > 0 ? (int)(userInput.Length / 5.0 / elapsedMinutes) : 0;
+
+            InvokeAsync(StateHasChanged);
+        }
+        else if (testCompleted) 
+        {
+             var elapsedMinutes = (DateTime.Now - startTime).TotalMinutes;
+             wpm = elapsedMinutes > 0 ? (int)(userInput.Length / 5.0 / elapsedMinutes) : 0;
+             InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadNextText()
+    {
+        if (isLoadingText) return; 
+
+        isLoadingText = true;
+        sampleText = ""; 
+        testStarted = false;
+        testCompleted = false;
+        userInput = "";
+        accuracy = 100;
+        wpm = 0;
+        cumulativeCorrect = 0;
+        cumulativeTotal = 0;
+        showTranslation = false;
+        timer?.Stop(); 
+
+        StateHasChanged(); 
+
+        await LoadNewSampleText(); 
+
+        isLoadingText = false;
+        StateHasChanged(); 
+
+        await Task.Delay(50); 
+        if (baseGameComponent != null)
+        {
+            await baseGameComponent.FocusInput();
+        }
+    }
+
+    private async Task LoadNewSampleText()
+    {
+        string? apiUrl = null;
+        try
+        {
+            if (ModeService.SelectedMode == TextType.Words)
+            {
+                apiUrl = Configuration["TextApis:RandomWords"];
+            }
+            else if (ModeService.SelectedMode == TextType.BookQuote)
+            {
+                apiUrl = Configuration["TextApis:RandomBookQuote"];
+            }
+
+            if (!string.IsNullOrEmpty(apiUrl))
+            {
+                var fetchedText = await Http.GetStringAsync(apiUrl);
+
+                if (ModeService.SelectedMode == TextType.Words)
+                {
+                    sampleText = System.Text.Json.JsonSerializer.Deserialize<string[]>(fetchedText)?.Length > 0
+                        ? string.Join(" ", System.Text.Json.JsonSerializer.Deserialize<string[]>(fetchedText)!)
+                        : "Error loading words.";
+                }
+                else if (ModeService.SelectedMode == TextType.BookQuote)
+                {
+                     using var jsonDoc = System.Text.Json.JsonDocument.Parse(fetchedText);
+                     sampleText = jsonDoc.RootElement.TryGetProperty("quote", out var quoteElement)
+                                    ? quoteElement.GetString() ?? "Error loading quote."
+                                    : "Error: Quote format invalid.";
+                }
+                else {
+                    sampleText = "Select a mode."; 
+                }
+            }
+            else {
+                 sampleText = "API URL not configured for selected mode.";
+            }
+
+             sampleText = sampleText.Replace("\n", " ").Replace("\r", " ").Replace("  ", " ").Trim();
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading sample text from {apiUrl}: {ex}");
+            sampleText = $"Error loading text. Check console. {ex.Message}"; 
+        }
+    }
+
+    public void Dispose()
+    {
+        timer?.Stop();
+        timer?.Dispose();
+        ModeService.OnModeChanged -= OnModeChanged;
+    }
+}
