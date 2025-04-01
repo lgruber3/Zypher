@@ -1,0 +1,59 @@
+@page "/SelectMode"
+@using Zypher.Services
+@inject IConfiguration Configuration
+@inject HttpClient Http
+@inject ModeService ModeService
+
+<PageTitle>Zypher</PageTitle>
+
+<div class="wrapper">
+    <div class="container">
+        @if (!isMultiplayer)
+        {
+            <h1>Zypher</h1>
+            <h5 class="info info-text">Select your Game Mode!</h5>
+            
+            <div class="wrappButtons">
+                <button class="btn btn-primary button" @onclick="SetSingleMode">Single Mode</button>
+                <button class="btn btn-primary button" @onclick="SetMultiplayerMode">Multiplayer Mode</button>
+            </div>
+        }
+        else
+        {
+            <h1>Multiplayer</h1>
+            <div id="startContainer">
+                <button class="btn btn-secondary second">start</button>
+            </div>
+            <div style="width: 100%; display: flex; justify-content: center">
+                <hr style="margin: 20px 0; color: white; width: 80%"/>
+            </div>
+            <h3 style="color: white; margin-top: 5vw">Enter code</h3>
+            <div class="input-container" style="display: flex; align-items: center; gap: 10px; width: fit-content; margin: auto;">
+                <input type="text" class="form-control" placeholder="Enter 4-digit code" bind="enteredCode" maxlength="4" />
+                <button class="btn btn-success" @onclick="AcceptCode">Accept</button>
+            </div>
+        }
+    </div>
+    
+</div>
+
+@code {
+    private bool isMultiplayer = false;
+    private string enteredCode;
+
+    private void SetMultiplayerMode()
+    {
+        isMultiplayer = true;
+       
+    }
+
+    private void SetSingleMode()
+    {
+        isMultiplayer = false;
+    }
+
+    private void AcceptCode()
+    {
+        // Hier kann die Logik zum Verarbeiten des eingegebenen Codes hinzugefügt werden
+    }
+}

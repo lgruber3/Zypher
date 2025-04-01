@@ -34,9 +34,9 @@
         PopupStateService.OnStateChanged += StateHasChanged;
         UserService.OnUserUpdated += UpdateUsername;
         
-        if (NavigationManager.Uri.EndsWith("/login") == false)
+        if (NavigationManager.Uri.EndsWith("/SelectMode") == false)
         {
-            NavigationManager.NavigateTo("/login", true); 
+            NavigationManager.NavigateTo("/SelectMode", true); 
         }
     }
     
@@ -63,6 +63,6 @@
     public void Dispose()
     {
         PopupStateService.OnStateChanged -= StateHasChanged;
-        UserService.OnUserUpdated -= UpdateUsername;
+        UserService.OnUserUpdated -= UpdateUsername;    
     }
 }

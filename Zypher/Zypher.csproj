@@ -71,5 +71,11 @@
       <_ContentIncludedByDefault Remove="Components\Account\Shared\StatusMessage.razor" />
       <_ContentIncludedByDefault Remove="Components\Account\RedirectToLogin.razor" />
     </ItemGroup>
+    
+    <ItemGroup>
+      <None Update="Components\Pages\SelectMode.razor.css">
+        <DependentUpon>SelectMode.razor</DependentUpon>
+      </None>
+    </ItemGroup>
 
 </Project>
