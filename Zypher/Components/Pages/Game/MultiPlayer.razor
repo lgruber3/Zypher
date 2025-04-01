@@ -91,7 +91,13 @@ else
                             bool isCurrentHost = player.ConnectionId == hostConnectionId;
                             string nameSuffix = isCurrentPlayer ? " (You)" : (isCurrentHost ? " (Host)" : "");
                             <div class="player-progress mb-2 @(isCurrentPlayer ? "my-progress" : "")">
-                                <span>@player.Name@nameSuffix (@(player.Wpm) WPM):</span>
+                             <span>
+                                        @player.Name@nameSuffix (@(player.Wpm) WPM)
+                                        @if (player.Finished)
+                                        {
+                                            <span class="text-success ms-2 fw-bold">Finished!</span>
+                                        }
+                             </span>                              
                                 <div class="progress" style="height: 20px;">
                                     <div class="progress-bar @GetProgressBarClass(player)" role="progressbar"
                                          style="width: @Math.Round(CalculateProgressPercentage(player.Position))%;"
@@ -103,7 +109,11 @@ else
                                 </div>
                                  @if (isCurrentPlayer) 
                                  {
-                                    <small class="text-muted d-block">Accuracy: @localAccuracy.ToString("0.0")%</small>
+                                     <small class="text-muted d-block">Accuracy: @localAccuracy.ToString("0.0")%</small>
+                                     @if (sampleText.Length == localUserInput.Length && sampleText != localUserInput)
+                                     {
+                                         <small class="text-danger d-block">Fix your mistakes!</small>
+                                     }
                                  }
                             </div>
                         }
@@ -222,6 +232,7 @@ else
           public string ConnectionId { get; set; } = "";
           public string Name { get; set; } = "";
           public int Position { get; set; }
+          public double Accuracy { get; set; }
       }
 
     protected override async Task OnInitializedAsync()
@@ -296,8 +307,8 @@ else
                  Name = p.Name,
                  Position = p.Position,
                  Wpm = 0, 
-                 Accuracy = 100,
-                 Finished = !string.IsNullOrEmpty(sampleText) && p.Position >= sampleText.Length 
+                 Accuracy = p.Accuracy,
+                 Finished = !string.IsNullOrEmpty(sampleText) && p.Position >= sampleText.Length  && p.Accuracy >= 100
              }).ToDictionary(p => p.ConnectionId);
 
 
@@ -327,7 +338,7 @@ else
         hubConnection.On<HubPlayerState>("PlayerJoined", (newPlayer) => {
              Console.WriteLine($"Player Joined: {newPlayer.Name} ({newPlayer.ConnectionId})");
              if (players.TryAdd(newPlayer.ConnectionId, new PlayerStateDto {
-                  ConnectionId = newPlayer.ConnectionId, Name = newPlayer.Name, Position = newPlayer.Position, Wpm = 0, Accuracy = 100, Finished = false
+                  ConnectionId = newPlayer.ConnectionId, Name = newPlayer.Name, Position = newPlayer.Position, Wpm = 0, Accuracy = newPlayer.Accuracy, Finished = false
              })) { InvokeAsync(StateHasChanged); }
         });
 
@@ -344,12 +355,13 @@ else
         });
 
 
-        hubConnection.On<string, int>("PlayerProgressUpdated", (connectionId, position) => {
+        hubConnection.On<string, int, double>("PlayerProgressUpdated", (connectionId, position, accuracy) => {
             if (players.TryGetValue(connectionId, out var player))
             {
                 player.Position = position;
+                player.Accuracy = accuracy;
                  bool justFinished = !player.Finished && !string.IsNullOrEmpty(sampleText) && position >= sampleText.Length;
-                 player.Finished = !string.IsNullOrEmpty(sampleText) && position >= sampleText.Length;
+                 player.Finished = !string.IsNullOrEmpty(sampleText) && position >= sampleText.Length && sampleText == localUserInput;
 
                 if(connectionId == myConnectionId)
                 {
@@ -518,7 +530,7 @@ else
         {
             try
             {
-                await hubConnection.InvokeAsync("UpdateProgress", localUserInput.Length);
+                await hubConnection.InvokeAsync("UpdateProgress", localUserInput.Length, localAccuracy);
             }
             catch (Exception ex)
             {

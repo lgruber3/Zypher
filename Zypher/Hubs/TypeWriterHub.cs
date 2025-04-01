@@ -21,6 +21,7 @@ namespace Zypher
         public required string ConnectionId { get; set; }
         public required string Name { get; set; }
         public int Position { get; set; }
+        public double Accuracy { get; set; } 
     }
 
     public class GameSession : IDisposable
@@ -101,6 +102,7 @@ namespace Zypher
         public string ConnectionId { get; set; } = "";
         public string Name { get; set; } = "";
         public int Position { get; set; }
+        public double Accuracy { get; set; }
     }
 
     public class HubGameStateDto
@@ -269,7 +271,7 @@ namespace Zypher
         }
 
 
-        public async Task UpdateProgress(int position)
+        public async Task UpdateProgress(int position, double accuracy)
         {
             var connectionId = Context.ConnectionId;
 
@@ -282,8 +284,10 @@ namespace Zypher
                     if (game.Players.TryGetValue(connectionId, out PlayerState? player))
                     {
                         position = Math.Clamp(position, 0, game.SampleText!.Length); 
+                        accuracy = Math.Clamp(accuracy, 0, 100);
                         player.Position = position;
-                        await Clients.Group(gameCode).SendAsync("PlayerProgressUpdated", connectionId, position);
+                        player.Accuracy = accuracy;
+                        await Clients.Group(gameCode).SendAsync("PlayerProgressUpdated", connectionId, position, accuracy);
                     }
                     else
                     {
@@ -308,6 +312,7 @@ namespace Zypher
                 ConnectionId = connectionId,
                 Name = validatedPlayerName,
                 Position = 0,
+                Accuracy = 100
             };
 
             bool added = game.Players.TryAdd(connectionId, player);
@@ -334,7 +339,7 @@ namespace Zypher
             {
                 GameCode = game.GameCode,
                 SampleText = game.SampleText, 
-                Players = game.Players.Values.Select(p => new HubPlayerState { ConnectionId = p.ConnectionId, Name = p.Name, Position = p.Position }).ToList(),
+                Players = game.Players.Values.Select(p => new HubPlayerState { ConnectionId = p.ConnectionId, Name = p.Name, Position = p.Position, Accuracy = p.Accuracy}).ToList(),
                 HostConnectionId = game.HostConnectionId,
                 CurrentState = game.CurrentState
             };
@@ -343,10 +348,10 @@ namespace Zypher
 
             if (added && !wasFirstPlayer) 
             {
-                var newPlayerState = new HubPlayerState { ConnectionId = player.ConnectionId, Name = player.Name, Position = player.Position };
+                var newPlayerState = new HubPlayerState { ConnectionId = player.ConnectionId, Name = player.Name, Position = player.Position, Accuracy = player.Accuracy };
                 await Clients.OthersInGroup(gameCode).SendAsync("PlayerJoined", newPlayerState);
             } else if (wasFirstPlayer && game.Players.Count > 1) {
-                var firstPlayerState = new HubPlayerState { ConnectionId = player.ConnectionId, Name = player.Name, Position = player.Position };
+                var firstPlayerState = new HubPlayerState { ConnectionId = player.ConnectionId, Name = player.Name, Position = player.Position, Accuracy = player.Accuracy };
                 await Clients.OthersInGroup(gameCode).SendAsync("PlayerJoined", firstPlayerState);
             }
         }
