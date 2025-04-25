@@ -75,3 +75,4 @@ artifacts/
 
 # Rider
 .idea/
+.aider*

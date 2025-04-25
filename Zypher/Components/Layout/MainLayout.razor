@@ -18,7 +18,8 @@
         </nav>
       <div class="bar">
           <p @onclick="() => SetMode(TextType.Words)"class="mode-selector @(ModeService.SelectedMode  == TextType.Words? "active" : "")">Words</p>
-            <p @onclick="() => SetMode(TextType.BookQuote)" class="mode-selector @(ModeService.SelectedMode  == TextType.BookQuote? "active" : "")">Book Quotes</p>
+          <p @onclick="() => SetMode(TextType.BookQuote)" class="mode-selector @(ModeService.SelectedMode  == TextType.BookQuote? "active" : "")">Book Quotes</p>
+            <p @onclick="() => GoToMultiplayer()" class="mode-selector">Multiplayer/Singleplayer</p>
       </div>
     </main>
         <div>
@@ -58,6 +59,11 @@
     private void SetMode(TextType mode)
     {
         ModeService.SelectedMode = mode;
+    }
+    
+    private void GoToMultiplayer()
+    {
+        NavigationManager.NavigateTo("/selectmode");
     }
     
     public void Dispose()

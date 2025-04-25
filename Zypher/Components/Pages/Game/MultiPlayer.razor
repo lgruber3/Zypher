@@ -13,6 +13,7 @@
 
 <PageTitle>Multiplayer Race</PageTitle>
 
+
 @if (isLoading)
 {
     <div class="connection-container">
@@ -35,7 +36,7 @@ else if (!isConnected || string.IsNullOrEmpty(gameId))
 }
 else 
 {
-    <div class="game-area">
+    <div class="game-area @(currentGameState == GameStateEnum.CountingDown ? "counting-down" : "")">
 
         @if (currentGameState == GameStateEnum.CountingDown && countdownValue > 0)
         {
@@ -49,108 +50,138 @@ else
                  <h1>GO!</h1>
              </div>
          }
+        
+          else if (currentGameState == GameStateEnum.Finished && !string.IsNullOrEmpty(winnerName))
+                {
+                    <div class="winner-overlay"> 
+                        <div class="winner-content"> 
+                            <p>@winnerName Won!</p>
+                            <h1>The race has ended.</h1>
+                            <button class="btn btn-lg btn-primary mt-4 winner-button" @onclick="NavigateToHome">
+                                Back to Menu
+                            </button>
+                        </div>
+                    </div>
+                }
 
-
-        <BaseGame @ref="baseGameComponent"
-                  Title='@($"Race - {gameId}")'
-                  InfoText="@GetInfoText()"
-                  SampleText="@sampleText"
-                  CurrentUserInput="@localUserInput"
-                  IsActive="@(currentGameState == GameStateEnum.Racing)" 
-                  ShowCursor="true"
-                  ShowTranslation="@showTranslation"
-                  FloatingTranslationText="@floatingTranslation"
-                  FloatingTop="@floatingTop"
-                  FloatingLeft="@floatingLeft"
-                  OnInputChange="HandleLocalInputChange"
-                  OnRawKeyDown="HandleLocalKeyDown"
-                  OnTranslationRequested="HandleTranslationRequest">
-            <ChildContent>
-                 @if (isHost && currentGameState == GameStateEnum.Waiting)
-                 {
-                     <button class="btn start-btn mb-3" @onclick="RequestStartGame_Click" disabled="@(!CanStartGame())">
-                         Start Game (@players.Count @(players.Count == 1 ? "Player" : "Players"))
-                     </button>
-                     @if (!CanStartGame()) {
-                         <small class="d-block text-muted mb-3">Waiting for at least 1 other player to start.</small> 
-                     }
-                 }
-                 else if (!isHost && currentGameState == GameStateEnum.Waiting)
-                 {
-                     <p class="mb-3"><em>Waiting for the host (@GetHostName()) to start the game...</em></p>
-                 }
-
-                <div class="player-progress-area mt-3 mb-3 border p-2 rounded">
-                    <h5>Race Progress: (Host: @GetHostName())</h5>
-                    @if (players.Any())
+        <div @ref="baseGameWrapperElement" style="scroll-margin-top: 10px;">
+            <BaseGame @ref="baseGameComponent"
+                      Title='@($"Race - {gameId}")'
+                      InfoText="@GetInfoText()"
+                      SampleText="@sampleText"
+                      CurrentUserInput="@localUserInput"
+                      IsActive="@(currentGameState == GameStateEnum.Racing)" 
+                      ShowCursor="true"
+                      ShowTranslation="@showTranslation"
+                      FloatingTranslationText="@floatingTranslation"
+                      FloatingTop="@floatingTop"
+                      FloatingLeft="@floatingLeft"
+                      OnInputChange="HandleLocalInputChange"
+                      OnRawKeyDown="HandleLocalKeyDown"
+                      OnTranslationRequested="HandleTranslationRequest">
+                <ChildContent>
+                    @if (isHost && currentGameState == GameStateEnum.Waiting)
                     {
-                        @foreach (var player in players.Values.OrderByDescending(p => p.Position).ThenBy(p => p.Name)) 
+                        <button class="btn start-btn mb-3" @onclick="RequestStartGame_Click" disabled="@(!CanStartGame())">
+                            Start Game (@players.Count @(players.Count == 1 ? "Player" : "Players"))
+                        </button>
+                        @if (!CanStartGame()) {
+                            <small class="d-block text-muted mb-3">Waiting for at least 1 other player to start.</small> 
+                        }
+                    }
+                    else if (!isHost && currentGameState == GameStateEnum.Waiting)
+                    {
+                        <p class="mb-3"><em>Waiting for the host (@GetHostName()) to start the game...</em></p>
+                    }
+
+                    <div class="player-progress-area mt-3 mb-3  border-top pt-5">
+                        <h5>Race Progress: (Host: @GetHostName())</h5>
+                        @if (players.Any())
                         {
-                            bool isCurrentPlayer = player.ConnectionId == myConnectionId;
-                            bool isCurrentHost = player.ConnectionId == hostConnectionId;
-                            string nameSuffix = isCurrentPlayer ? " (You)" : (isCurrentHost ? " (Host)" : "");
-                            <div class="player-progress mb-2 @(isCurrentPlayer ? "my-progress" : "")">
-                             <span>
+                            // --- Get players sorted and add an index ---
+                            var sortedPlayersWithIndex = players.Values
+                                .OrderByDescending(p => p.Name)
+                                .Select((player, index) => new { Player = player, Index = index })
+                                .ToList(); 
+                      
+                            foreach (var item in sortedPlayersWithIndex)
+                            {
+                                var player = item.Player;
+                                int playerIndex = item.Index; // Index for vertical offset
+                          
+                                bool isCurrentPlayer = player.ConnectionId == myConnectionId;
+                                bool isCurrentHost = player.ConnectionId == hostConnectionId;
+                                string nameSuffix = isCurrentPlayer ? " (You)" : (isCurrentHost ? " (Host)" : "");
+                                double progressPercent = CalculateProgressPercentage(player.Position);
+                          
+                                // --- Start Player Progress Block ---
+                                <div class="player-progress mb-2 @(isCurrentPlayer ? "my-progress" : "")">
+                              
+                                    <!-- Player Name and Info -->
+                                    <span>
                                         @player.Name@nameSuffix (@(player.Wpm) WPM)
                                         @if (player.Finished)
                                         {
                                             <span class="text-success ms-2 fw-bold">Finished!</span>
                                         }
-                             </span>                              
-                                <div class="progress" style="height: 20px;">
-                                    <div class="progress-bar @GetProgressBarClass(player)" role="progressbar"
-                                         style="width: @Math.Round(CalculateProgressPercentage(player.Position))%;"
-                                         aria-valuenow="@Math.Round((decimal)player.Position)"
-                                         aria-valuemin="0"
-                                         aria-valuemax="@(sampleText?.Length ?? 100)">
-                                        @(CalculateProgressPercentage(player.Position))%
-                                <span>@player.Name@nameSuffix (@(player.Wpm) WPM):</span>
-                                <div class="progress-container" style="position: relative;">
-                                    
-                                    <svg class="rocket-icon" 
-                                         style="position: absolute; left: @(CalculateProgressPercentage(player.Position))%; transform: translateX(-50%); top: -20px; width: 20px; height: 20px;"
-                                         xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                                        <path fill="@(player.ConnectionId == myConnectionId ? "#007bff" : player.ConnectionId == hostConnectionId ? "#17a2b8" : "#6c757d")" 
-                                              d="M12,2.5c0,0,4.5,2.04,4.5,10.5c0,2.49-1.04,5.57-1.6,7H9.1c-0.56-1.43-1.6-4.51-1.6-7C7.5,4.54,12,2.5,12,2.5z"/>
-                                        <path fill="#dc3545" d="M10,15h4v4h-4V15z"/>
-                                        <path fill="#ffc107" d="M12,7c1.1,0,2,0.9,2,2s-0.9,2-2,2s-2-0.9-2-2S10.9,7,12,7z"/>
-                                    </svg>
-                                    
-                                    <div class="progress" style="height: 20px;">
-                                        <div class="progress-bar @GetProgressBarClass(player)" role="progressbar"
-                                             style="width: @Math.Round(CalculateProgressPercentage(player.Position))%;"
-                                             aria-valuenow="@Math.Round((decimal)player.Position)"
-                                             aria-valuemin="0"
-                                             aria-valuemax="@(sampleText?.Length ?? 100)">
-                                            @(CalculateProgressPercentage(player.Position))%
+                                    </span>           
+                  
+                                    <!-- Container for Progress Bar and Rocket -->
+                                    <div class="progress-rocket-container" style="position: relative; margin-top: 5px; margin-bottom: 5px; /* Dynamic margin based on player count */">
+                                  
+                                        <!-- Optional: Actual Progress Bar (uncomment if desired) -->
+                                        <!-- 
+                                        <div class="progress" style="height: 20px; position: relative; z-index: 0;"> 
+                                            <div class="progress-bar @GetProgressBarClass(player)" role="progressbar"
+                                                 style="width: @progressPercent%;"
+                                                 aria-valuenow="@player.Position"
+                                                 aria-valuemin="0"
+                                                 aria-valuemax="@(sampleText?.Length ?? 100)">
+                                                @($"{progressPercent:0}")%
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>
-                                 @if (isCurrentPlayer) 
-                                 {
-                                     <small class="text-muted d-block">Accuracy: @localAccuracy.ToString("0.0")%</small>
-                                     @if (sampleText.Length == localUserInput.Length && sampleText != localUserInput)
-                                     {
-                                         <small class="text-danger d-block">Fix your mistakes!</small>
-                                     }
-                                 }
-                            </div>
+                                        -->
+                                  
+                                        <!-- Rocket Icon with Vertical Offset -->
+                                        <img class="rocket-icon @(isCurrentPlayer ? "my-rocket" : "")" 
+                                             src="rocket.png" alt="Player Progress Rocket"
+                                             style="position: absolute; 
+                                              left: @progressPercent%; 
+                                              height: 100%; /* Maintain aspect ratio */
+                                              z-index: 1; /* Ensure rocket is above bar if uncommented */
+                                              object-fit: contain;" 
+                                        />
+                                    </div> 
+                                    <!-- End Container for Progress Bar and Rocket -->
+                  
+                                    <!-- Player Specific Info (Accuracy, etc.) -->
+                                    @if (isCurrentPlayer) 
+                                    {
+                                        <small class="text-muted d-block" style="margin-top: -5px; /* Pull accuracy up slightly */">Accuracy: @localAccuracy.ToString("0.0")%</small>
+                                        @if (sampleText.Length == localUserInput.Length && sampleText != localUserInput)
+                                        {
+                                            <small class="text-danger d-block">Fix your mistakes!</small>
+                                        }
+                                    }
+                                </div> 
+                                // --- End Player Progress Block ---
+                            }
                         }
-                    }
-                    else
-                    {
-                        <p><em>Waiting for players...</em></p>
-                    }
-                </div>
+                        else
+                        {
+                            <p><em>Waiting for players...</em></p>
+                        }
+                    </div>
 
-                <button class="btn btn-danger mt-3" @onclick="LeaveGame_Click">Leave Game</button>
-            </ChildContent>
-        </BaseGame>
+                    <button class="btn btn-danger mt-3" @onclick="LeaveGame_Click">Leave Game</button>
+                </ChildContent>
+            </BaseGame>
+            </div>
     </div>
 }
 
 <style>
-    .countdown-overlay {
+    .countdown-overlay, .winner-overlay {
         position: fixed; 
         top: 0;
         left: 0;
@@ -162,9 +193,27 @@ else
         align-items: center;
         z-index: 1000;
         color: white;
-        font-size: 5em; 
-         pointer-events: none; 
+        font-size: 5em;
     }
+    
+    .winner-button {
+        background-color: #8a2be2;
+        pointer-events: auto;
+        border: none;
+    }
+    
+    .winner-button:hover {
+        background-color: #7a1ea1;
+    }
+    
+    .winner-content {
+        text-align: center;
+        color: white;
+        font-size: 2em;
+        background-color: #3b3b3b ;
+        border-radius: 10px;
+    }
+    
     .go-message h1 {
          color: #28a745; 
     }
@@ -175,25 +224,23 @@ else
      .progress-bar.bg-success { }
      .progress-bar.bg-primary { }
      .progress-bar.bg-info { } 
-     .progress-bar { } 
+     .progress-bar { 
+         transition: width 0.1s linear; 
+      } 
 
      .game-area BaseGame {
-         transition: opacity 0.3s ease-in-out;
+         transition: opacity 0.5s ease-in-out;
      }
-    .game-area .counting-down BaseGame { 
+    .game-area.counting-down BaseGame { 
          opacity: 0.5;
          pointer-events: none;
      }
 
-    /* Neue Styles für die Raketen */
-    .progress-container {
-        position: relative;
-        margin-top: 20px; /* Platz für die Rakete */
+    .rocket-icon {
+        transition: left 0.1s linear;
     }
-      
- 
+  
 </style>
-
 
 @code {
     [Parameter] public string GameCodeFromUrl { get; set; } = "";
@@ -201,7 +248,8 @@ else
     [Inject] NavigationManager Navigation { get; set; } = default!;
     [Inject] IJSRuntime JS { get; set; } = default!;
     [Inject] HttpClient Http { get; set; } = default!;
-
+    
+    private ElementReference baseGameWrapperElement; 
     private BaseGame? baseGameComponent;
     private HubConnection? hubConnection;
     private System.Timers.Timer? localWpmTimer;
@@ -229,6 +277,7 @@ else
     private bool localTestStarted = false; 
     private int localCumulativeCorrect = 0;
     private int localCumulativeTotal = 0;
+    private string? winnerName = null; 
 
     private bool showTranslation = false;
     private string floatingTranslation = "";
@@ -259,6 +308,7 @@ else
           public string Name { get; set; } = "";
           public int Position { get; set; }
           public double Accuracy { get; set; }
+          public int Wpm { get; set; }
       }
 
     protected override async Task OnInitializedAsync()
@@ -304,6 +354,11 @@ else
             StateHasChanged();
         }
     }
+    
+    private void NavigateToHome()
+    {
+        Navigation.NavigateTo("/selectmode");
+    }
 
     private void ConfigureHubHandlers()
     {
@@ -332,7 +387,7 @@ else
                  ConnectionId = p.ConnectionId,
                  Name = p.Name,
                  Position = p.Position,
-                 Wpm = 0, 
+                 Wpm = p.Wpm, 
                  Accuracy = p.Accuracy,
                  Finished = !string.IsNullOrEmpty(sampleText) && p.Position >= sampleText.Length  && p.Accuracy >= 100
              }).ToDictionary(p => p.ConnectionId);
@@ -364,7 +419,7 @@ else
         hubConnection.On<HubPlayerState>("PlayerJoined", (newPlayer) => {
              Console.WriteLine($"Player Joined: {newPlayer.Name} ({newPlayer.ConnectionId})");
              if (players.TryAdd(newPlayer.ConnectionId, new PlayerStateDto {
-                  ConnectionId = newPlayer.ConnectionId, Name = newPlayer.Name, Position = newPlayer.Position, Wpm = 0, Accuracy = newPlayer.Accuracy, Finished = false
+                  ConnectionId = newPlayer.ConnectionId, Name = newPlayer.Name, Position = newPlayer.Position, Accuracy = newPlayer.Accuracy, Finished = false, Wpm = newPlayer.Wpm
              })) { InvokeAsync(StateHasChanged); }
         });
 
@@ -399,7 +454,9 @@ else
                         Console.WriteLine($"Player {localPlayerName} finished.");
                         StopLocalWpmTimer(); 
                         UpdateLocalStats(); 
-                        player.Wpm = localWpm; 
+                        player.Wpm = localWpm;
+                        if (player.Finished)
+                            hubConnection?.InvokeAsync("PlayerFinished", GameCodeFromUrl, localPlayerName);
                     }
                 }
                 InvokeAsync(StateHasChanged);
@@ -447,6 +504,14 @@ else
              InvokeAsync(StateHasChanged);
               _ = Task.Delay(3000).ContinueWith(_ => { loadingError = null; InvokeAsync(StateHasChanged); }); 
          });
+        
+        hubConnection.On<string>("GameFinished", (nameOfWinner) => {
+           Console.WriteLine($"Received GameFinished signal. Winner: {nameOfWinner}");
+           currentGameState = GameStateEnum.Finished;
+           winnerName = nameOfWinner;
+           localTestStarted = false; 
+           InvokeAsync(StateHasChanged);
+        });
 
     }
 
@@ -538,10 +603,12 @@ else
     {
         if (currentGameState != GameStateEnum.Racing || string.IsNullOrEmpty(sampleText)) return;
 
+        bool justStarted = false;
         if (!localTestStarted && !string.IsNullOrEmpty(newInput))
         {
             localStartTime = DateTime.Now;
             localTestStarted = true;
+            justStarted = true;
             StartLocalWpmTimer();
             Console.WriteLine("Local typing test started.");
         }
@@ -552,11 +619,27 @@ else
         }
         localUserInput = newInput;
 
+        if (localTestStarted && baseGameWrapperElement.Context != null) 
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("blazorInterop.scrollToElement", baseGameWrapperElement);
+            }
+            catch (JSException jsEx)
+            {
+                Console.WriteLine($"JS Interop scroll error: {jsEx.Message}");
+            }
+            catch(InvalidOperationException ioEx)
+            {
+                Console.WriteLine($"Scroll error (InvalidOperation): {ioEx.Message}");
+            }
+        }
+        
         if (isConnected && hubConnection?.State == HubConnectionState.Connected)
         {
             try
             {
-                await hubConnection.InvokeAsync("UpdateProgress", localUserInput.Length, localAccuracy);
+                await hubConnection.InvokeAsync("UpdateProgress", localUserInput.Length, localAccuracy, localWpm);
             }
             catch (Exception ex)
             {
@@ -711,6 +794,7 @@ else
              GameStateEnum.Waiting => isHost ? "Click 'Start Game' when ready." : $"Waiting for {GetHostName()} to start...",
              GameStateEnum.CountingDown => "Get Ready...",
              GameStateEnum.Racing => "Type the text below!",
+                GameStateEnum.Finished => "Race finished!",
              _ => "Loading game...",
          };
      }
@@ -790,6 +874,7 @@ else
             hubConnection.Remove("ReceiveCountdownState");
             hubConnection.Remove("GameStarted");
             hubConnection.Remove("StartGameError");
+            hubConnection.Remove("GameFinished");
 
             await hubConnection.DisposeAsync();
         }

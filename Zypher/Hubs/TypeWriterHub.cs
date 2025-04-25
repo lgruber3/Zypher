@@ -3,6 +3,8 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Timers;
 
@@ -21,16 +23,17 @@ namespace Zypher
         public required string ConnectionId { get; set; }
         public required string Name { get; set; }
         public int Position { get; set; }
-        public double Accuracy { get; set; } 
+        public double Accuracy { get; set; }
+        public int Wpm { get; set; }
     }
 
     public class GameSession : IDisposable
     {
         public required string GameCode { get; set; }
-        public string? SampleText { get; set; } 
+        public string? SampleText { get; set; }
         public ConcurrentDictionary<string, PlayerState> Players { get; }
         public DateTime CreationTime { get; }
-        public string? HostConnectionId { get; set; } 
+        public string? HostConnectionId { get; set; }
         public GameStateEnum CurrentState { get; set; }
 
         private System.Timers.Timer? _countdownTimer;
@@ -103,6 +106,7 @@ namespace Zypher
         public string Name { get; set; } = "";
         public int Position { get; set; }
         public double Accuracy { get; set; }
+        public int Wpm { get; set; }
     }
 
     public class HubGameStateDto
@@ -117,7 +121,9 @@ namespace Zypher
 
     public class TypingHub : Hub
     {
-        private static readonly ConcurrentDictionary<string, GameSession> _activeGames = new ConcurrentDictionary<string, GameSession>(StringComparer.OrdinalIgnoreCase);
+        private static readonly ConcurrentDictionary<string, GameSession> _activeGames =
+            new ConcurrentDictionary<string, GameSession>(StringComparer.OrdinalIgnoreCase);
+
         private static readonly Random _random = new Random();
         private readonly IHubContext<TypingHub> _hubContext;
         private readonly HttpClient Http;
@@ -130,7 +136,7 @@ namespace Zypher
             Configuration = configuration;
         }
 
-        public async Task<string?> CreateGame() 
+        public async Task<string?> CreateGame()
         {
             var connectionId = Context.ConnectionId;
             Console.WriteLine($"Game creation requested by {connectionId}");
@@ -146,8 +152,9 @@ namespace Zypher
                 {
                     Console.WriteLine($"Error: Could not generate unique game code after {maxAttempts} attempts.");
                     await Clients.Caller.SendAsync("GameCreationError", "Failed to generate a unique game code.");
-                    return null; 
+                    return null;
                 }
+
                 gameCode = new string(Enumerable.Repeat(chars, codeLength)
                     .Select(s => s[_random.Next(s.Length)]).ToArray());
             } while (_activeGames.ContainsKey(gameCode));
@@ -163,13 +170,13 @@ namespace Zypher
             if (_activeGames.TryAdd(gameCode, gameSession))
             {
                 Console.WriteLine($"Pending game created: {gameCode} by {connectionId}. Waiting for first player.");
-                return gameCode; 
+                return gameCode;
             }
             else
             {
                 Console.WriteLine($"Error: Failed to add pending game {gameCode} to dictionary.");
                 await Clients.Caller.SendAsync("GameCreationError", "Failed to register the new game session.");
-                return null; 
+                return null;
             }
         }
 
@@ -187,45 +194,48 @@ namespace Zypher
 
             if (_activeGames.TryGetValue(gameCode, out GameSession? game))
             {
-                if (game.CurrentState != GameStateEnum.Waiting && game.CurrentState != GameStateEnum.CountingDown) 
+                if (game.CurrentState != GameStateEnum.Waiting && game.CurrentState != GameStateEnum.CountingDown)
                 {
                     await Clients.Caller.SendAsync("JoinError", $"Game '{gameCode}' has already started or finished.");
                     return;
                 }
 
                 bool isFirstPlayer = false;
-                if (!game.IsReadyToStart()) 
+                if (!game.IsReadyToStart())
                 {
-                     if (!game.IsReadyToStart()) 
-                     {
-                         Console.WriteLine($"Game {gameCode}: First player {connectionId} joining. Initializing game...");
-                         string? initialText = await FetchTextFromServerLogicInternal(); 
+                    if (!game.IsReadyToStart())
+                    {
+                        Console.WriteLine(
+                            $"Game {gameCode}: First player {connectionId} joining. Initializing game...");
+                        string? initialText = await FetchTextFromServerLogicInternal();
 
-                         if (string.IsNullOrEmpty(initialText))
-                         {
-                             Console.WriteLine($"Error: Failed to fetch sample text for game {gameCode} during join.");
-                             await Clients.Caller.SendAsync("JoinError", "Failed to load sample text for the game.");
-                             return;
-                         }
-                         game.SampleText = initialText;
-                         game.HostConnectionId = connectionId;
-                         game.CurrentState = GameStateEnum.Waiting; 
-                         isFirstPlayer = true;
-                          Console.WriteLine($"Game {gameCode}: Initialized. Host: {connectionId}, Text set.");
-                     }
+                        if (string.IsNullOrEmpty(initialText))
+                        {
+                            Console.WriteLine($"Error: Failed to fetch sample text for game {gameCode} during join.");
+                            await Clients.Caller.SendAsync("JoinError", "Failed to load sample text for the game.");
+                            return;
+                        }
+
+                        game.SampleText = initialText;
+                        game.HostConnectionId = connectionId;
+                        game.CurrentState = GameStateEnum.Waiting;
+                        isFirstPlayer = true;
+                        Console.WriteLine($"Game {gameCode}: Initialized. Host: {connectionId}, Text set.");
+                    }
                 }
-                
-                if (string.IsNullOrEmpty(game.SampleText)) 
-                { 
-                     await Clients.Caller.SendAsync("JoinError", "Game data is missing. Cannot join.");
-                     return;
+
+                if (string.IsNullOrEmpty(game.SampleText))
+                {
+                    await Clients.Caller.SendAsync("JoinError", "Game data is missing. Cannot join.");
+                    return;
                 }
 
                 await JoinGameInternal(gameCode, playerName, connectionId, game, isFirstPlayer);
             }
             else
             {
-                Console.WriteLine($"Join Failed: Player {connectionId} ({playerName}) tried to join non-existent game {gameCode}.");
+                Console.WriteLine(
+                    $"Join Failed: Player {connectionId} ({playerName}) tried to join non-existent game {gameCode}.");
                 await Clients.Caller.SendAsync("JoinError", $"Game code '{gameCode}' not found or has expired.");
             }
         }
@@ -246,32 +256,38 @@ namespace Zypher
 
                     if (game.HostConnectionId == connectionId && game.CurrentState == GameStateEnum.Waiting)
                     {
-                        if (game.Players.Count < 1) 
+                        if (game.Players.Count < 1)
                         {
-                            await Clients.Caller.SendAsync("StartGameError", "Need at least 1 player to start."); 
+                            await Clients.Caller.SendAsync("StartGameError", "Need at least 1 player to start.");
                             return;
                         }
+
                         Console.WriteLine($"Game {gameCode}: Start request received from host {connectionId}.");
                         game.StartCountdownSequence();
                     }
                     else if (game.HostConnectionId != connectionId)
                     {
-                        Console.WriteLine($"Game {gameCode}: Start request denied. Caller {connectionId} is not the host ({game.HostConnectionId}).");
+                        Console.WriteLine(
+                            $"Game {gameCode}: Start request denied. Caller {connectionId} is not the host ({game.HostConnectionId}).");
                         await Clients.Caller.SendAsync("StartGameError", "Only the host can start the game.");
                     }
                     else
                     {
                         Console.WriteLine($"Game {gameCode}: Start request denied. Game state is {game.CurrentState}.");
-                        await Clients.Caller.SendAsync("StartGameError", $"Cannot start game, current state is: {game.CurrentState}.");
+                        await Clients.Caller.SendAsync("StartGameError",
+                            $"Cannot start game, current state is: {game.CurrentState}.");
                     }
                 }
-            } else {
-                 Console.WriteLine($"Warning: Player {connectionId} requested start game but has no game code associated.");
+            }
+            else
+            {
+                Console.WriteLine(
+                    $"Warning: Player {connectionId} requested start game but has no game code associated.");
             }
         }
 
 
-        public async Task UpdateProgress(int position, double accuracy)
+        public async Task UpdateProgress(int position, double accuracy, int wpm)
         {
             var connectionId = Context.ConnectionId;
 
@@ -283,54 +299,65 @@ namespace Zypher
 
                     if (game.Players.TryGetValue(connectionId, out PlayerState? player))
                     {
-                        position = Math.Clamp(position, 0, game.SampleText!.Length); 
+                        position = Math.Clamp(position, 0, game.SampleText!.Length);
                         accuracy = Math.Clamp(accuracy, 0, 100);
                         player.Position = position;
                         player.Accuracy = accuracy;
-                        await Clients.Group(gameCode).SendAsync("PlayerProgressUpdated", connectionId, position, accuracy);
+                        player.Wpm = wpm;
+                        await Clients.Group(gameCode)
+                            .SendAsync("PlayerProgressUpdated", connectionId, position, accuracy);
                     }
                     else
                     {
-                        Console.WriteLine($"Warning: Player {connectionId} sent progress for game {gameCode} but is not listed in players dictionary.");
+                        Console.WriteLine(
+                            $"Warning: Player {connectionId} sent progress for game {gameCode} but is not listed in players dictionary.");
                     }
                 }
             }
         }
 
-        private async Task JoinGameInternal(string gameCode, string playerName, string connectionId, GameSession game, bool wasFirstPlayer)
+        private async Task JoinGameInternal(string gameCode, string playerName, string connectionId, GameSession game,
+            bool wasFirstPlayer)
         {
-             if (!game.IsReadyToStart() || string.IsNullOrEmpty(game.SampleText)) {
-                 Console.WriteLine($"Error: JoinGameInternal called for game {gameCode} but it's not ready.");
-                 await Clients.Caller.SendAsync("JoinError", "Game initialization failed.");
-                 return;
-             }
+            if (!game.IsReadyToStart() || string.IsNullOrEmpty(game.SampleText))
+            {
+                Console.WriteLine($"Error: JoinGameInternal called for game {gameCode} but it's not ready.");
+                await Clients.Caller.SendAsync("JoinError", "Game initialization failed.");
+                return;
+            }
 
-            string validatedPlayerName = string.IsNullOrWhiteSpace(playerName) ? $"Player_{connectionId.Substring(0, 4)}" : playerName.Trim();
+            string validatedPlayerName = string.IsNullOrWhiteSpace(playerName)
+                ? $"Player_{connectionId.Substring(0, 4)}"
+                : playerName.Trim();
 
             var player = new PlayerState
             {
                 ConnectionId = connectionId,
                 Name = validatedPlayerName,
                 Position = 0,
-                Accuracy = 100
+                Accuracy = 100,
+                Wpm = 0
             };
 
             bool added = game.Players.TryAdd(connectionId, player);
 
             if (!added && game.Players.ContainsKey(connectionId))
             {
-                 Console.WriteLine($"Player {player.Name} ({connectionId}) re-joining game {gameCode}.");
+                Console.WriteLine($"Player {player.Name} ({connectionId}) re-joining game {gameCode}.");
             }
             else if (!added)
             {
-                Console.WriteLine($"Error: Failed to add player {player.Name} ({connectionId}) to game {gameCode} dictionary.");
+                Console.WriteLine(
+                    $"Error: Failed to add player {player.Name} ({connectionId}) to game {gameCode} dictionary.");
                 await Clients.Caller.SendAsync("JoinError", "A server error occurred adding player.");
                 return;
             }
 
-             if (added) {
-                Console.WriteLine($"Player {player.Name} ({connectionId}) added to game {gameCode}. Players: {game.Players.Count}");
-             }
+            if (added)
+            {
+                Console.WriteLine(
+                    $"Player {player.Name} ({connectionId}) added to game {gameCode}. Players: {game.Players.Count}");
+            }
 
             await Groups.AddToGroupAsync(connectionId, gameCode);
             Context.Items["GameCode"] = gameCode;
@@ -338,20 +365,34 @@ namespace Zypher
             var gameStateDto = new HubGameStateDto
             {
                 GameCode = game.GameCode,
-                SampleText = game.SampleText, 
-                Players = game.Players.Values.Select(p => new HubPlayerState { ConnectionId = p.ConnectionId, Name = p.Name, Position = p.Position, Accuracy = p.Accuracy}).ToList(),
+                SampleText = game.SampleText,
+                Players = game.Players.Values.Select(p => new HubPlayerState
+                {
+                    ConnectionId = p.ConnectionId, Name = p.Name, Position = p.Position, Accuracy = p.Accuracy,
+                    Wpm = p.Wpm
+                }).ToList(),
                 HostConnectionId = game.HostConnectionId,
                 CurrentState = game.CurrentState
             };
 
             await Clients.Caller.SendAsync("ReceiveFullGameState", gameStateDto);
 
-            if (added && !wasFirstPlayer) 
+            if (added && !wasFirstPlayer)
             {
-                var newPlayerState = new HubPlayerState { ConnectionId = player.ConnectionId, Name = player.Name, Position = player.Position, Accuracy = player.Accuracy };
+                var newPlayerState = new HubPlayerState
+                {
+                    ConnectionId = player.ConnectionId, Name = player.Name, Position = player.Position,
+                    Accuracy = player.Accuracy, Wpm = player.Wpm
+                };
                 await Clients.OthersInGroup(gameCode).SendAsync("PlayerJoined", newPlayerState);
-            } else if (wasFirstPlayer && game.Players.Count > 1) {
-                var firstPlayerState = new HubPlayerState { ConnectionId = player.ConnectionId, Name = player.Name, Position = player.Position, Accuracy = player.Accuracy };
+            }
+            else if (wasFirstPlayer && game.Players.Count > 1)
+            {
+                var firstPlayerState = new HubPlayerState
+                {
+                    ConnectionId = player.ConnectionId, Name = player.Name, Position = player.Position,
+                    Accuracy = player.Accuracy, Wpm = player.Wpm
+                };
                 await Clients.OthersInGroup(gameCode).SendAsync("PlayerJoined", firstPlayerState);
             }
         }
@@ -368,7 +409,8 @@ namespace Zypher
 
                     if (game.Players.TryRemove(connectionId, out PlayerState? player))
                     {
-                        Console.WriteLine($"Player {player.Name} ({connectionId}) disconnected from game {gameCode}. Players Left: {game.Players.Count}");
+                        Console.WriteLine(
+                            $"Player {player.Name} ({connectionId}) disconnected from game {gameCode}. Players Left: {game.Players.Count}");
                         await Clients.Group(gameCode).SendAsync("PlayerLeft", connectionId);
 
                         if (wasHost && !game.Players.IsEmpty)
@@ -377,7 +419,8 @@ namespace Zypher
                             if (newHost != null)
                             {
                                 game.HostConnectionId = newHost.ConnectionId;
-                                Console.WriteLine($"Game {gameCode}: Host disconnected. New host assigned: {newHost.Name} ({newHost.ConnectionId})");
+                                Console.WriteLine(
+                                    $"Game {gameCode}: Host disconnected. New host assigned: {newHost.Name} ({newHost.ConnectionId})");
                                 await Clients.Group(gameCode).SendAsync("NewHostAssigned", game.HostConnectionId);
                             }
                         }
@@ -386,19 +429,25 @@ namespace Zypher
                         {
                             Console.WriteLine($"Game {gameCode} is now empty. Removing session.");
                             game.Dispose();
-                            if (_activeGames.TryRemove(gameCode, out _)) {
+                            if (_activeGames.TryRemove(gameCode, out _))
+                            {
                                 Console.WriteLine($"Game {gameCode} successfully removed.");
-                            } else {
+                            }
+                            else
+                            {
                                 Console.WriteLine($"Warning: Failed to remove empty game {gameCode}.");
                             }
                         }
                     }
-                    else {
-                         Console.WriteLine($"Warning: Disconnected player {connectionId} not found in game {gameCode}.");
+                    else
+                    {
+                        Console.WriteLine($"Warning: Disconnected player {connectionId} not found in game {gameCode}.");
                     }
                 }
-                else {
-                     Console.WriteLine($"Warning: Disconnected player {connectionId} had game code {gameCode}, but game not found.");
+                else
+                {
+                    Console.WriteLine(
+                        $"Warning: Disconnected player {connectionId} had game code {gameCode}, but game not found.");
                 }
             }
 
@@ -416,13 +465,15 @@ namespace Zypher
                 {
                     var fetchedText = await Http.GetStringAsync(apiUrl);
 
-                        using var jsonDoc = System.Text.Json.JsonDocument.Parse(fetchedText);
-                        text = jsonDoc.RootElement.TryGetProperty("quote", out var quoteElement)
-                            ? quoteElement.GetString() ?? "Error loading quote."
-                            : "Error: Quote format invalid.";
-              
+                    using var jsonDoc = System.Text.Json.JsonDocument.Parse(fetchedText);
+                    text = jsonDoc.RootElement.TryGetProperty("quote", out var quoteElement)
+                        ? quoteElement.GetString() ?? "Error loading quote."
+                        : "Error: Quote format invalid.";
+
+                    text = NormalizeText(text);
                 }
-                else {
+                else
+                {
                     text = "API URL not configured for selected mode.";
                 }
 
@@ -431,10 +482,48 @@ namespace Zypher
             catch (Exception ex)
             {
                 Console.WriteLine($"Error loading sample text from {apiUrl}: {ex}");
-                text = $"Error loading text. Check console. {ex.Message}"; 
+                text = $"Error loading text. Check console. {ex.Message}";
             }
-            
+
             return text;
+        }
+        
+        public static string NormalizeText(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return string.Empty;
+
+            input = input.Normalize(NormalizationForm.FormC);
+
+            input = input.Replace("“", "\"")
+                .Replace("”", "\"")
+                .Replace("‘", "'")
+                .Replace("’", "'");
+
+            input = input.Replace("–", "-") 
+                .Replace("—", "-")
+                .Replace("―", "-");
+            input = input.Replace("…", "...");
+            input = input.Replace("_", " ");
+            input = Regex.Replace(input, @"\p{C}+", "");
+            input = Regex.Replace(input, @"[^\u0000-\u007F]+", "");
+
+
+            return input;
+        }
+
+
+        public async void PlayerFinished(string gameCode, string playerName)
+        {
+            var connectionId = Context.ConnectionId;
+
+            if (_activeGames.TryGetValue(gameCode, out GameSession? game))
+            {
+                if (game.Players.TryGetValue(connectionId, out PlayerState? player))
+                {
+                    await Clients.Group(gameCode).SendAsync("GameFinished", playerName);
+                }
+            }
         }
     }
 }
